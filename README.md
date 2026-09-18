@@ -37,22 +37,18 @@ introuvable est refusee plutot que silencieusement ignoree.
 
 **2. Secrets**
 
-Creer un `.env` a la racine :
+```bash
+cp .env.exemple .env
+```
 
-```
-LBA_API_KEY=...                 # https://api.apprentissage.beta.gouv.fr (gratuit)
-CLAUDE_CODE_OAUTH_TOKEN=...     # resultat de `claude setup-token`
-```
+`LBA_API_KEY` est deja renseignee : la collecte fonctionne sans rien faire.
+Reste a produire ton jeton Claude avec `claude setup-token` et a le coller dans
+`CLAUDE_CODE_OAUTH_TOKEN`, ou depuis la page Parametres, qui ecrit dans `.env`.
 
 Les lettres sont redigees par Claude Code en mode headless via ce jeton, donc
-sur un abonnement plutot que sur l'API facturee au token. Le jeton se saisit
-aussi depuis la page Parametres, qui l'ecrit dans `.env` — jamais dans un
-fichier de donnees.
+sur un abonnement plutot que sur l'API facturee au token.
 
-Facultatif, pour l'envoi par email (offres du portail de l'emploi public, qui
-se candidatent par courrier) : `SMTP_USER` / `SMTP_APP_PASSWORD`, ou les
-identifiants Microsoft Graph `GRAPH_CLIENT_ID` / `GRAPH_TENANT_ID` /
-`GRAPH_EXPEDITEUR`.
+Le reste du fichier ne sert qu'a l'envoi par email, decrit ci-dessous.
 
 **3. Faits du candidat pour les lettres**
 
@@ -103,6 +99,31 @@ mettre. L'inspection le constate avant qu'on paie.
 
 ---
 
+## Envoyer par email
+
+Necessaire uniquement pour les offres qui se candidatent par courrier — le
+portail de l'emploi public, principalement. Les autres sources ont leur propre
+formulaire.
+
+Deux canaux, le premier renseigne dans `.env` etant utilise automatiquement :
+
+- **mot de passe d'application Gmail** — `SMTP_USER` / `SMTP_APP_PASSWORD`.
+  Ce n'est pas le mot de passe du compte mais un code dedie, cree sur
+  [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+  et revocable a tout moment. La validation en deux etapes doit etre active.
+- **adresse universitaire via Microsoft 365** — `GRAPH_CLIENT_ID` /
+  `GRAPH_TENANT_ID` / `GRAPH_EXPEDITEUR`, ce qui suppose une application
+  declaree dans l'Entra ID de l'etablissement. Authentification par device
+  code : aucun mot de passe n'est stocke.
+
+```bash
+python envoyer.py --offre 925               # apercu, n'envoie rien
+python envoyer.py --offre 925 --confirmer   # envoie par le canal disponible
+python envoyer.py --offre 925 --canal gmail --confirmer
+```
+
+---
+
 ## Le dashboard
 
 Application Flask locale, **sans authentification** : elle ecoute sur
@@ -114,7 +135,8 @@ Application Flask locale, **sans authentification** : elle ecoute sur
 - **Pipeline** — lettre prete, envoyee, entretien, refus, signee.
 - **Vues de rejet** (`hors_cible`, `ecole`, `ecarte`, `sans_canal`) —
   consultables, avec un bouton Recuperer pour rattraper un faux positif.
-- **Parametres** — CV, jeton, profil, mots-cles, ROME, exclusions, seuils.
+- **Parametres** — CV, jeton Claude, comptes de sites, profil, adresse,
+  mots-cles, ROME, exclusions, seuils.
 
 Toute decision prise dans l'interface est journalisee et passe en statut fige :
 `sourcing.py --rescore` ne l'ecrasera jamais.

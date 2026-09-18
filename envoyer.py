@@ -131,6 +131,21 @@ def envoyer_graph(offre, pieces):
     return os.environ.get("GRAPH_EXPEDITEUR", "(adresse universitaire)")
 
 
+def canal_disponible():
+    """Premier canal reellement configure, ou None.
+
+    Le defaut ne peut pas etre fixe une fois pour toutes : graph suppose une
+    application declaree dans l'Entra ID d'un etablissement, ce que personne
+    n'a en dehors de celui pour qui l'outil a ete ecrit. Choisir a la place de
+    l'utilisateur evite un echec d'authentification incomprehensible.
+    """
+    if os.environ.get("GRAPH_CLIENT_ID") and os.environ.get("GRAPH_TENANT_ID"):
+        return "graph"
+    if os.environ.get("SMTP_USER") and os.environ.get("SMTP_APP_PASSWORD"):
+        return "gmail"
+    return None
+
+
 def envoyer_smtp(offre, pieces):
     """Envoi de secours via Gmail, avec Reply-To sur l'adresse universitaire."""
     user = os.environ.get("SMTP_USER")
@@ -151,9 +166,17 @@ def main():
     p.add_argument("--offre", type=int, required=True)
     p.add_argument("--confirmer", action="store_true",
                    help="sans ce drapeau, rien n'est envoye")
-    p.add_argument("--canal", choices=["graph", "gmail"], default="graph",
-                   help="graph = adresse universitaire (defaut), gmail = secours")
+    p.add_argument("--canal", choices=["auto", "graph", "gmail"], default="auto",
+                   help="auto = premier canal configure ; graph = Microsoft 365 ; "
+                        "gmail = mot de passe d'application")
     args = p.parse_args()
+
+    if args.canal == "auto":
+        args.canal = canal_disponible()
+        if args.canal is None:
+            sys.exit("Aucun canal d'envoi configure : renseigner SMTP_USER et "
+                     "SMTP_APP_PASSWORD dans .env, ou les trois variables "
+                     "GRAPH_* pour une adresse Microsoft 365.")
 
     conn = db.connect()
     o = conn.execute("SELECT * FROM offres WHERE id = ?", (args.offre,)).fetchone()
@@ -172,8 +195,10 @@ def main():
     if manquantes:
         sys.exit(f"pieces manquantes : {manquantes}\nLancer d'abord generer.py")
 
-    expediteur = (os.environ.get("GRAPH_EXPEDITEUR") if args.canal == "graph"
-                  else os.environ.get("SMTP_USER") or "(SMTP_USER absent du .env)")
+    expediteur = {
+        "graph": os.environ.get("GRAPH_EXPEDITEUR") or "(GRAPH_EXPEDITEUR absent)",
+        "gmail": os.environ.get("SMTP_USER") or "(SMTP_USER absent du .env)",
+    }[args.canal]
     print(f"Canal   : {args.canal}")
     print(f"De      : {expediteur}")
     print(f"À       : {o['contact_email']}")
@@ -188,10 +213,8 @@ def main():
         print("APERÇU — rien n'a été envoyé. Ajouter --confirmer pour envoyer.")
         return
 
-    if args.canal == "graph":
-        envoye_par = envoyer_graph(o, pieces)
-    else:
-        envoye_par = envoyer_smtp(o, pieces)
+    envoye_par = {"graph": envoyer_graph,
+                  "gmail": envoyer_smtp}[args.canal](o, pieces)
 
     maintenant = datetime.now().isoformat(timespec="seconds")
     conn.execute("UPDATE offres SET statut = 'envoyee' WHERE id = ?", (args.offre,))

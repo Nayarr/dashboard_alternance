@@ -11,6 +11,7 @@ Premiere utilisation :
 import base64
 import json
 import os
+import time
 from pathlib import Path
 
 import msal
@@ -66,9 +67,15 @@ def jeton(interactif=True):
             "Authentification, cote portail Entra."
         )
 
-    print("\n" + "=" * 62)
+    # Ligne lisible par une machine, en plus du message pour un humain :
+    # l'interface web lance ce script en tache de fond et doit pouvoir extraire
+    # le code de son journal pour l'afficher. Sans elle, il faudrait analyser
+    # une phrase en anglais dont le libelle depend du tenant.
+    print(f"# DEVICE_CODE {flux['user_code']} "
+          f"{flux.get('verification_uri', 'https://microsoft.com/devicelogin')}")
+    print("=" * 62)
     print(flux["message"])
-    print("=" * 62 + "\n")
+    print("=" * 62)
 
     res = app.acquire_token_by_device_flow(flux)
     if "access_token" not in res:
@@ -76,6 +83,43 @@ def jeton(interactif=True):
                            f"{res.get('error_description', res)}")
     _sauver(cache)
     return res["access_token"]
+
+
+def etat():
+    """Ce que l'interface affiche. Ne lit aucun jeton, ne fait aucun appel reseau.
+
+    `configure` distingue deux absences qui n'appellent pas la meme reponse :
+    pas d'application declaree cote Entra, ou application declaree mais compte
+    jamais connecte.
+    """
+    configure = bool(os.environ.get("GRAPH_CLIENT_ID")
+                     and os.environ.get("GRAPH_TENANT_ID"))
+    if not configure or not CACHE.exists():
+        return {"connecte": False, "compte": None, "configure": configure}
+
+    try:
+        app, _ = _application()
+        comptes = app.get_accounts()
+    except Exception:
+        comptes = []
+
+    if not comptes:
+        return {"connecte": False, "compte": None, "configure": True}
+
+    age = (time.time() - CACHE.stat().st_mtime) / 86400
+    return {"connecte": True, "configure": True,
+            "compte": comptes[0].get("username"),
+            "age_jours": round(age, 1)}
+
+
+def oublier():
+    """Efface le cache local. Ne revoque rien cote Microsoft.
+
+    Le consentement se retire sur myapps.microsoft.com : dit explicitement
+    plutot que laisse croire qu'un bouton local suffit.
+    """
+    CACHE.unlink(missing_ok=True)
+    return True
 
 
 def qui_suis_je(token):
@@ -157,3 +201,4 @@ if __name__ == "__main__":
         print(f"Jeton obtenu (identite non lisible, portee limitee a l'envoi) — "
               f"expediteur declare : {os.environ.get('GRAPH_EXPEDITEUR')}")
     print(f"Jeton en cache dans {CACHE.name}")
+    print("# OK compte connecte")

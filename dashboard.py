@@ -457,6 +457,21 @@ def api_deconnecter(cle):
     return jsonify({"ok": True, "cle": cle, **connecter_compte.etat(cle)})
 
 
+@app.route("/api/integrations/outlook")
+def api_outlook():
+    """Etat de la boite universitaire. Ne renvoie aucun jeton."""
+    import graph_mail
+    return jsonify(graph_mail.etat())
+
+
+@app.route("/api/integrations/outlook", methods=["DELETE"])
+def api_outlook_oublier():
+    """Efface le cache local. Le consentement se retire cote Microsoft."""
+    import graph_mail
+    graph_mail.oublier()
+    return jsonify({"ok": True, **graph_mail.etat()})
+
+
 @app.route("/api/parametres/impact", methods=["POST"])
 def api_impact():
     """Que couperait cette configuration, sans rien enregistrer.

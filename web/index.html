@@ -49,7 +49,7 @@
       <div class="pousse">
         <button class="bouton" id="btn-reconnaissance">Inspecter les formulaires</button>
         <button class="bouton" id="btn-lettres">Générer les lettres</button>
-        <button class="bouton primaire" id="btn-postuler">Préparer les candidatures</button>
+        <button class="bouton primaire" id="btn-postuler">Envoyer les candidatures</button>
       </div>
     </div>
 
@@ -159,6 +159,21 @@
            refusent les navigateurs pilotés et s'y rouvraient en boucle. La
            connexion est ensuite détectée automatiquement.</p>
         <div class="comptes" id="comptes"></div>
+      </div>
+
+      <div class="bloc">
+        <h3>Adresse universitaire</h3>
+        <p class="aide">Pour les offres qui se candidatent par courrier, le
+           portail de l'emploi public notamment. Connexion par code : rien ne
+           s'ouvre ici, tu saisis un code sur une page Microsoft depuis le
+           navigateur de ton choix. Aucun mot de passe n'est lu ni stocké.</p>
+        <div class="comptes" id="integration-outlook"></div>
+        <div class="code-appareil" id="code-appareil" hidden>
+          <div class="libelle">Saisis ce code sur
+            <a id="code-lien" href="https://microsoft.com/devicelogin"
+               target="_blank" rel="noopener">microsoft.com/devicelogin</a></div>
+          <div class="code" id="code-valeur"></div>
+        </div>
       </div>
 
       <div class="bloc">

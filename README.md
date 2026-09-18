@@ -81,7 +81,13 @@ recruteur.
 python dashboard.py                  # interface sur http://127.0.0.1:5000
 ```
 
-Tout se pilote de la. En ligne de commande :
+Tout se pilote de la : collecte, inspection des formulaires, redaction,
+envoi, connexion aux comptes. **Le bouton « Envoyer les candidatures » envoie
+reellement**, apres une confirmation qui annonce le nombre. C'est le pendant
+du drapeau `--confirmer` de la ligne de commande.
+
+Les memes operations en ligne de commande, ou le defaut est l'inverse : rien
+ne part sans `--confirmer`.
 
 ```bash
 python sourcing.py                   # collecte les cinq sources
@@ -263,19 +269,24 @@ l'adresse d'envoi dans l'apercu.
 
 **5. Se connecter une fois**
 
-```bash
-python graph_mail.py --connexion
-```
-
-Un code s'affiche, a saisir sur
+Page **Parametres**, bloc *Adresse universitaire*, bouton **Connecter**. Un
+code s'affiche dans l'interface, a saisir sur
 [microsoft.com/devicelogin](https://microsoft.com/devicelogin) depuis
-n'importe quel navigateur deja connecte au compte universitaire. Le jeton de
-rafraichissement obtenu evite d'avoir a recommencer.
+n'importe quel navigateur deja connecte au compte universitaire. Le bloc
+indique ensuite quelle adresse est connectee.
 
-Verifier a tout moment quel compte est connecte :
+Rien ne s'ouvre sur la machine : c'est tout l'interet du device code, il n'y a
+ni redirection ni serveur local. Le jeton de rafraichissement obtenu evite
+d'avoir a recommencer.
+
+Le bouton **Oublier** efface le jeton local. L'autorisation elle-meme se retire
+sur [myapps.microsoft.com](https://myapps.microsoft.com).
+
+Equivalent en ligne de commande, si l'interface n'est pas lancee :
 
 ```bash
-python graph_mail.py
+python graph_mail.py --connexion   # se connecter
+python graph_mail.py               # quel compte est connecte ?
 ```
 
 **En cas d'erreur**

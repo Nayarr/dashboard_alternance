@@ -6,8 +6,9 @@ token*.json
 token_cache.json
 
 # Identite du candidat
-# config.py ne porte qu'un profil d'exemple ; les vraies coordonnees vivent ici.
-identite_locale.py
+# config.py ne porte qu'un profil d'exemple. Les vraies coordonnees sont
+# saisies depuis la page Parametres, qui les ecrit dans data/parametres.json,
+# couvert par la regle data/ plus bas.
 # Le prompt systeme contient le parcours, les projets et les competences
 # reelles. Le .exemple.md qui l'accompagne est, lui, versionne.
 prompts/systeme_lettre.md

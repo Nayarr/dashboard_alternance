@@ -22,18 +22,18 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-Trois pieces sont personnelles et donc absentes du depot. Sans elles l'outil
-demarre, mais avec un profil fictif : suffisant pour explorer l'interface, pas
-pour candidater.
+Quatre choses a mettre en place. L'outil demarre sans elles, avec un profil
+fictif : suffisant pour explorer l'interface, pas pour candidater.
 
 **1. Identite**
 
-```bash
-cp identite_locale.exemple.py identite_locale.py
-```
+Rien a editer : nom, email, telephone, adresse postale et point de reference
+des distances se saisissent depuis la page **Parametres** de l'interface, qui
+les ecrit dans `data/parametres.json`. `config.py` ne porte qu'un profil
+d'exemple, qui sert de valeur de repli et reste publie.
 
-Nom, email, telephone, adresse postale, point de reference des distances.
-`config.py` ne porte qu'un profil d'exemple, qui sert de valeur de repli.
+L'adresse de reference est geocodee a l'enregistrement : une adresse
+introuvable est refusee plutot que silencieusement ignoree.
 
 **2. Secrets**
 
@@ -130,7 +130,7 @@ entree supprimee depuis l'interface peut toujours etre retrouvee, et le bouton
 
 | Reglage | Effet |
 |---|---|
-| Profil, adresse, rayon | Distances, formulaires, disponibilite |
+| Profil, adresse postale, rayon | Identite, distances, remplissage des formulaires |
 | Alternance / stage | Change les requetes envoyees aux sources, le bareme et la lettre |
 | Duree de stage | 8 semaines en BUT2, 14 en BUT3 ; tolerance reglable |
 | Mots-cles techniques | ~85 termes ponderes, ajoutables et supprimables |
@@ -270,9 +270,10 @@ Ce sont des choix, pas des manques :
 
 ## Donnees personnelles
 
-Ne sont pas versionnes, et ne doivent pas l'etre : `.env`, `identite_locale.py`,
+Ne sont pas versionnes, et ne doivent pas l'etre : `.env`,
 `prompts/systeme_lettre.md`, `templates/cv/`, `templates/dossier/`, `data/`
-(base, sessions, profils de navigateur, parametres) et `lettres/`.
+(base, sessions, profils de navigateur, et `parametres.json` qui porte
+l'identite saisie dans l'interface) et `lettres/`.
 
 Avant de publier un fork, verifier que `git status` ne propose aucun de ces
 chemins.

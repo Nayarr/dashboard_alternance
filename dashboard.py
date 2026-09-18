@@ -357,6 +357,19 @@ def api_enregistrer_parametres():
             return jsonify({"erreur": "adresse email invalide"}), 400
         modifications["profil"] = profil
 
+    # Adresse postale : reclamee par les formulaires des grands comptes, qui
+    # refusent un code postal invalide. Distincte de l'adresse de reference
+    # ci-dessus, qui ne sert qu'au calcul des distances.
+    if isinstance(donnees.get("adresse_postale"), dict):
+        postale = {}
+        for cle, valeur in donnees["adresse_postale"].items():
+            if cle in config.DEFAUTS["adresse_postale"]:
+                postale[cle] = str(valeur).strip()[:120]
+        code = postale.get("code_postal")
+        if code and not re.fullmatch(r"[0-9]{5}", code):
+            return jsonify({"erreur": "code postal invalide (5 chiffres)"}), 400
+        modifications["adresse_postale"] = postale
+
     if isinstance(donnees.get("romes"), list):
         codes = []
         for code in donnees["romes"]:
@@ -407,7 +420,8 @@ def api_enregistrer_parametres():
 @app.route("/api/parametres/defaut/<cle>", methods=["POST"])
 def api_defaut(cle):
     """Retablit une liste a sa valeur par defaut en la retirant de la surcouche."""
-    if cle not in ("profil", "romes", "mots_cles", "ecole_blocklist"):
+    if cle not in ("profil", "adresse_postale", "romes", "mots_cles",
+                   "ecole_blocklist"):
         return jsonify({"erreur": f"liste inconnue : {cle}"}), 400
     parametres.reinitialiser(cle)
     etat = parametres.etat()

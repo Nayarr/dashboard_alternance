@@ -76,6 +76,14 @@ def appliquer(donnees=None):
         config.PROFIL.update({k: v for k, v in d["profil"].items()
                               if k in config.DEFAUTS["profil"]})
 
+    # Fusionnee comme le profil, pour la meme raison : une cle absente garde
+    # sa valeur par defaut au lieu de disparaitre.
+    config.ADRESSE_POSTALE = dict(config.DEFAUTS["adresse_postale"])
+    if isinstance(d.get("adresse_postale"), dict):
+        config.ADRESSE_POSTALE.update(
+            {k: v for k, v in d["adresse_postale"].items()
+             if k in config.DEFAUTS["adresse_postale"]})
+
     # Applique apres le profil : duree_max_mois est un critere de tri qui vit
     # dans PROFIL, la surcharge doit gagner sur la valeur fusionnee.
     if d.get("duree_max_mois"):
@@ -138,12 +146,14 @@ def etat():
         "stage_ecart_court": config.STAGE_ECART_COURT,
         "stage_ecart_long": config.STAGE_ECART_LONG,
         "profil": dict(config.PROFIL),
+        "adresse_postale": dict(config.ADRESSE_POSTALE),
         "romes": list(config.ROMES),
         "romes_connus": dict(config.ROMES_CONNUS),
         "mots_cles": dict(config.MOTS_CLES),
         "ecole_blocklist": list(config.ECOLE_BLOCKLIST),
         "personnalise": {
             "profil": "profil" in d,
+            "adresse_postale": "adresse_postale" in d,
             "romes": "romes" in d,
             "mots_cles": "mots_cles" in d,
             "ecole_blocklist": "ecole_blocklist" in d,

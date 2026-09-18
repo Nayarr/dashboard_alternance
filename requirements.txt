@@ -1,9 +1,25 @@
+# Socle
 requests>=2.31
 python-dotenv>=1.0
 
-# Etape 2 - generation des lettres et des PDF
+# Interface web et API locale (dashboard.py)
+flask>=3.0
+
+# Collecte : Algolia, Apec et le portail de l'emploi public renvoient du JSON,
+# JobTeaser et Choisir le service public du HTML rendu cote serveur.
+beautifulsoup4>=4.12
+playwright>=1.44
+
+# Lettres et pieces jointes
 pypdf>=4.0
 python-docx>=1.1
 
-# Etape 5 - collecte Welcome to the Jungle / HelloWork
-playwright>=1.44
+# Envoi par l'adresse universitaire via Microsoft Graph, par device code.
+# Inutile si l'on envoie par mot de passe d'application Gmail.
+msal>=1.28
+
+# Conversion DOCX vers PDF par automatisation de Word, donc Windows + Word
+# installe. Ne concerne que generer.py, qui fabrique les PDF joints aux
+# candidatures envoyees par email. La collecte, la notation, les lettres et le
+# depot dans les formulaires n'en dependent pas.
+pywin32>=306 ; sys_platform == "win32"

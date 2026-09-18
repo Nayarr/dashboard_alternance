@@ -103,24 +103,138 @@ mettre. L'inspection le constate avant qu'on paie.
 
 Necessaire uniquement pour les offres qui se candidatent par courrier — le
 portail de l'emploi public, principalement. Les autres sources ont leur propre
-formulaire.
+formulaire, et le depot y est automatise.
 
-Deux canaux, le premier renseigne dans `.env` etant utilise automatiquement :
-
-- **mot de passe d'application Gmail** — `SMTP_USER` / `SMTP_APP_PASSWORD`.
-  Ce n'est pas le mot de passe du compte mais un code dedie, cree sur
-  [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
-  et revocable a tout moment. La validation en deux etapes doit etre active.
-- **adresse universitaire via Microsoft 365** — `GRAPH_CLIENT_ID` /
-  `GRAPH_TENANT_ID` / `GRAPH_EXPEDITEUR`, ce qui suppose une application
-  declaree dans l'Entra ID de l'etablissement. Authentification par device
-  code : aucun mot de passe n'est stocke.
+Deux canaux. Le premier renseigne dans `.env` est utilise automatiquement.
 
 ```bash
 python envoyer.py --offre 925               # apercu, n'envoie rien
 python envoyer.py --offre 925 --confirmer   # envoie par le canal disponible
 python envoyer.py --offre 925 --canal gmail --confirmer
 ```
+
+### Canal rapide : mot de passe d'application Gmail
+
+Cinq minutes, aucune configuration cote serveur.
+
+1. Activer la validation en deux etapes sur le compte Google.
+2. Aller sur [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords),
+   creer un mot de passe nomme par exemple « candidatures ».
+3. Reporter dans `.env` :
+
+```
+SMTP_USER=prenom.nom@gmail.com
+SMTP_APP_PASSWORD=abcd efgh ijkl mnop
+```
+
+Ce n'est pas le mot de passe du compte : c'est un code dedie, revocable a tout
+moment depuis la meme page, et qui ne donne acces qu'a l'envoi SMTP. Il vit
+neanmoins en clair dans `.env` — d'ou l'interet du canal suivant si l'on
+dispose d'une adresse universitaire.
+
+### Canal propre : adresse universitaire via Microsoft Graph
+
+Envoyer depuis son adresse d'etablissement plutot que depuis un Gmail change la
+lecture d'une candidature etudiante. Et rien n'est stocke : l'authentification
+se fait par **device code**, l'outil ne voit jamais le mot de passe, seulement
+un jeton range dans `token_cache.json`, exclu du git.
+
+En echange, il faut declarer une application dans l'annuaire de
+l'etablissement. Comptez un quart d'heure la premiere fois.
+
+**Avant de commencer.** Beaucoup d'universites interdisent aux etudiants
+d'enregistrer une application. Verifie-le tout de suite : ouvre
+[entra.microsoft.com](https://entra.microsoft.com) avec ton compte
+universitaire, **Applications > Inscriptions d'applications**. Si « Nouvelle
+inscription » est grise ou renvoie une erreur d'autorisation, la suite est
+inutile sans passer par la DSI — reste sur le mot de passe d'application.
+
+**1. Inscrire l'application**
+
+**Applications > Inscriptions d'applications > Nouvelle inscription**
+
+| Champ | Valeur |
+|---|---|
+| Nom | `candidatures-alternance` (interne, aucune importance) |
+| Types de comptes pris en charge | *Comptes dans cet annuaire d'organisation uniquement* |
+| URI de redirection | **laisser vide** |
+
+Le device code n'utilise aucune redirection : c'est tout l'interet du procede,
+il n'y a pas de serveur local a exposer.
+
+**2. Autoriser les flux de client public**
+
+**Authentification > Parametres avances > Autoriser les flux de client public
+: Oui**, puis Enregistrer.
+
+Sans cette bascule, `initiate_device_flow` echoue en renvoyant
+`AADSTS7000218`. C'est l'erreur la plus frequente, et son message ne dit pas
+quoi activer.
+
+**3. Demander la permission d'envoyer**
+
+**Autorisations d'API > Ajouter une autorisation > Microsoft Graph >
+Autorisations deleguees**, puis cocher :
+
+- `Mail.Send` — envoyer un message en tant que l'utilisateur connecte
+- `User.Read` — lire son propre profil, uniquement pour afficher quel compte
+  est connecte
+
+*Deleguees* et non *Application* : la nuance est importante. Une permission
+d'application enverrait au nom de n'importe quelle boite du domaine, ce qui
+demande un consentement administrateur et n'est pas ce qu'on veut. Deleguee,
+l'application n'agit que pour la personne qui s'est connectee, et uniquement
+tant qu'elle y consent.
+
+Si le bouton **Accorder le consentement de l'administrateur** est disponible,
+cliquer dessus. Sinon, le consentement sera demande au premier lancement — et
+refuse par le tenant si celui-ci exige l'accord d'un administrateur. C'est le
+second point de blocage possible.
+
+**4. Reporter les identifiants**
+
+Sur la page **Vue d'ensemble** de l'application :
+
+```
+GRAPH_CLIENT_ID=<ID d'application (client)>
+GRAPH_TENANT_ID=<ID d'annuaire (locataire)>
+GRAPH_EXPEDITEUR=prenom.nom@etu.mon-universite.fr
+```
+
+Ces trois valeurs ne sont pas des secrets : l'application est un client public,
+elle n'a pas de mot de passe. `GRAPH_EXPEDITEUR` sert uniquement a afficher
+l'adresse d'envoi dans l'apercu.
+
+**5. Se connecter une fois**
+
+```bash
+python graph_mail.py --connexion
+```
+
+Un code s'affiche, a saisir sur
+[microsoft.com/devicelogin](https://microsoft.com/devicelogin) depuis
+n'importe quel navigateur deja connecte au compte universitaire. Le jeton de
+rafraichissement obtenu evite d'avoir a recommencer.
+
+Verifier a tout moment quel compte est connecte :
+
+```bash
+python graph_mail.py
+```
+
+**En cas d'erreur**
+
+| Message | Cause |
+|---|---|
+| `AADSTS7000218` au lancement | Etape 2 non faite : flux de client public desactives |
+| `AADSTS65001` / consentement requis | Le tenant exige l'accord d'un administrateur pour `Mail.Send` |
+| `AADSTS50020` | Compte personnel utilise sur une application mono-tenant |
+| `403` sur `/me` | `User.Read` absent. L'envoi fonctionne quand meme, seule l'identite n'est pas lisible |
+| `Aucun jeton valide en cache` | Relancer avec `--connexion` |
+
+L'acces se retire cote utilisateur sur
+[myapps.microsoft.com](https://myapps.microsoft.com), et en supprimant
+`token_cache.json`.
 
 ---
 

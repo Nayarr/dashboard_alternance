@@ -96,7 +96,8 @@ def appliquer(donnees=None):
     config.ECOLE_BLOCKLIST = list(d["ecole_blocklist"])         if isinstance(d.get("ecole_blocklist"), list)         else list(config.DEFAUTS["ecole_blocklist"])
 
     for cle, attribut in (("recherche_alternance", "RECHERCHE_ALTERNANCE"),
-                          ("recherche_stages", "RECHERCHE_STAGES")):
+                          ("recherche_stages", "RECHERCHE_STAGES"),
+                          ("lettre_relecture", "LETTRE_RELECTURE")):
         if cle in d:
             setattr(config, attribut, bool(d[cle]))
 
@@ -140,6 +141,7 @@ def etat():
         "rayon_km": config.RAYON_KM,
         "seuil_matching": config.SEUIL_MATCHING,
         "duree_max_mois": config.PROFIL["duree_negociable_jusqu_a"],
+        "lettre_relecture": config.LETTRE_RELECTURE,
         "recherche_alternance": config.RECHERCHE_ALTERNANCE,
         "recherche_stages": config.RECHERCHE_STAGES,
         "stage_duree_semaines": config.STAGE_DUREE_SEMAINES,

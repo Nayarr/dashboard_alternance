@@ -303,7 +303,8 @@ def api_enregistrer_parametres():
         modifications["origine"] = [resultats[0]["lat"], resultats[0]["lon"]]
 
     for cle, attribut in (("recherche_alternance", "RECHERCHE_ALTERNANCE"),
-                          ("recherche_stages", "RECHERCHE_STAGES")):
+                          ("recherche_stages", "RECHERCHE_STAGES"),
+                          ("lettre_relecture", "LETTRE_RELECTURE")):
         if donnees.get(cle) is not None:
             modifications[cle] = bool(donnees[cle])
     # Chercher ni l'un ni l'autre viderait toute collecte : on refuse plutot

@@ -349,6 +349,9 @@ async function chargerParametres() {
 
   $("#cherche-alternance").checked = !!p.recherche_alternance;
   $("#cherche-stages").checked = !!p.recherche_stages;
+  $("#lettre-relecture").checked = !!p.lettre_relecture;
+  document.querySelector('[data-cle="relecture"]')
+    .classList.toggle("active", !!p.lettre_relecture);
   $("#duree-stage").value = p.stage_duree_semaines;
   $("#ecart-court").value = p.stage_ecart_court;
   $("#ecart-long").value = p.stage_ecart_long;
@@ -609,6 +612,7 @@ async function enregistrerParametres() {
     seuil_matching: Number($("#p-seuil").value),
     recherche_alternance: $("#cherche-alternance").checked,
     recherche_stages: $("#cherche-stages").checked,
+    lettre_relecture: $("#lettre-relecture").checked,
     stage_duree_semaines: Number($("#duree-stage").value) || null,
     stage_ecart_court: Number($("#ecart-court").value),
     stage_ecart_long: Number($("#ecart-long").value),

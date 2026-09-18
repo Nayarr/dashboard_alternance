@@ -18,6 +18,40 @@ const $ = (sel) => document.querySelector(sel);
    reecarterait par le filtre meme qui l'avait sortie. */
 const REBUTS = ["ecarte", "hors_cible", "sans_canal", "ecole"];
 
+/* Suites possibles depuis chaque etape du pipeline.
+   Sans elles, le suivi s'arretait a l'envoi : les vues Entretien, Refus et
+   Signee existaient dans la navigation, mais rien ne permettait d'y faire
+   entrer une offre.
+
+   "Marquer envoyée" depuis Lettre prête compte autant que le reste : le depot
+   automatise ne couvre que La Bonne Alternance et Welcome to the Jungle. Les
+   offres du portail de l'emploi public partent par courrier, et celles portees
+   par l'ATS d'un employeur se deposent a la main. */
+const SUITES = {
+  lettre_prete: [
+    { statut: "envoyee", libelle: "Marquer envoyée", classe: "primaire" },
+  ],
+  envoyee: [
+    { statut: "entretien", libelle: "Entretien obtenu", classe: "primaire" },
+    { statut: "refus", libelle: "Refus" },
+  ],
+  entretien: [
+    { statut: "signee", libelle: "Alternance signée", classe: "primaire" },
+    { statut: "refus", libelle: "Refus" },
+  ],
+  // Une issue close se corrige : un refus mal saisi doit pouvoir revenir en
+  // arriere, sinon la seule sortie serait de retirer l'offre.
+  refus: [{ statut: "envoyee", libelle: "Rouvrir le suivi" }],
+  signee: [{ statut: "entretien", libelle: "Rouvrir le suivi" }],
+};
+
+const LIBELLES_SUITE = {
+  envoyee: "Marquée envoyée",
+  entretien: "Passée en entretien",
+  refus: "Refus enregistré",
+  signee: "Alternance signée",
+};
+
 // ---------------------------------------------------------------- utilitaires
 
 async function api(chemin, options = {}) {
@@ -233,6 +267,9 @@ async function ouvrirDetail(id) {
       ${REBUTS.includes(etat.vue)
         ? `<button class="bouton primaire" data-action="recuperer">Récupérer dans le vivier</button>`
         : ""}
+      ${(SUITES[etat.vue] || []).map((s) =>
+        `<button class="bouton ${s.classe || ""}" data-action="${s.statut}"
+                 >${s.libelle}</button>`).join("")}
       ${lien}
       <button class="bouton retrait" data-action="retirer">Retirer de la liste</button>
     </div>`;
@@ -254,7 +291,7 @@ async function changerStatut(id, action) {
     });
     toast(action === "retirer" ? "Offre retirée"
         : action === "recuperer" ? "Offre récupérée dans le vivier"
-        : "Offre validée");
+        : LIBELLES_SUITE[action] || "Offre validée");
     etat.choisie = null;
     $("#contenu").classList.remove("avec-detail");
     await Promise.all([chargerOffres(), rafraichirComptes()]);

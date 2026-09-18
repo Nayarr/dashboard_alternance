@@ -322,6 +322,23 @@ Application Flask locale, **sans authentification** : elle ecoute sur
 Toute decision prise dans l'interface est journalisee et passe en statut fige :
 `sourcing.py --rescore` ne l'ecrasera jamais.
 
+Le pipeline se pilote depuis le panneau de detail d'une offre :
+
+    Lettre prete  --[Marquer envoyee]-->  Envoyee
+    Envoyee       --[Entretien obtenu]->  Entretien   --[Refus]--> Refus
+    Entretien     --[Alternance signee]-> Signee
+    Refus, Signee --[Rouvrir le suivi]->  etape precedente
+
+« Marquer envoyee » compte autant que le reste : le depot automatise ne couvre
+que La Bonne Alternance et Welcome to the Jungle. Les offres du portail de
+l'emploi public partent par courrier, celles portees par l'ATS d'un employeur
+se deposent a la main — sans ce bouton, elles n'entreraient jamais dans le
+suivi.
+
+Chaque passage est reporte sur la ligne de `candidatures` : un envoi arme une
+relance a J+7, une reponse la desarme. Sans ce report, on relancerait un
+recruteur qui a deja repondu.
+
 ---
 
 ## Ce qui se regle sans toucher au code

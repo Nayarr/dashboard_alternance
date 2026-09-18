@@ -267,10 +267,47 @@ def api_statut(offre_id):
                      (effectif, offre_id))
     else:
         conn.execute("UPDATE offres SET statut = ? WHERE id = ?", (effectif, offre_id))
+    _suivre_reponse(conn, offre_id, effectif)
     db.log(conn, offre_id, f"statut:{avant['statut']}->{effectif}", "depuis l'interface")
     conn.commit()
     conn.close()
     return jsonify({"ok": True, "statut": effectif})
+
+
+# Ce qu'une issue signifie pour la ligne de candidature. Une offre passee en
+# entretien ou en refus a recu une reponse : la relance prevue n'a plus lieu
+# d'etre, et la laisser en place ferait relancer un recruteur qui a deja
+# repondu.
+REPONSES = {"entretien": "entretien", "refus": "refus", "signee": "signature"}
+
+
+def _suivre_reponse(conn, offre_id, statut):
+    """Reporte l'issue sur la ligne de candidature, quand elle existe.
+
+    Les deux tables ne disent pas la meme chose : `offres.statut` est l'etat
+    courant, `candidatures` porte le journal de l'envoi et des relances. Sans
+    ce report, la date de relance restait armee apres un refus.
+    """
+    if statut == "envoyee":
+        # Depot fait a la main - email, formulaire d'un ATS, candidature en
+        # personne. Sans cette ligne, l'offre serait "envoyee" sans qu'aucune
+        # relance ne soit jamais prevue.
+        existe = conn.execute(
+            "SELECT 1 FROM candidatures WHERE offre_id = ?", (offre_id,)).fetchone()
+        if not existe:
+            conn.execute(
+                "INSERT INTO candidatures (offre_id, canal, date_preparation, "
+                "date_envoi, statut, date_relance_prevue) VALUES "
+                "(?, 'manuel', datetime('now'), datetime('now'), 'envoyee', "
+                "date('now', '+7 days'))", (offre_id,))
+        return
+
+    if statut in REPONSES:
+        conn.execute(
+            "UPDATE candidatures SET statut = ?, type_reponse = ?, "
+            "date_reponse = COALESCE(date_reponse, datetime('now')), "
+            "date_relance_prevue = NULL WHERE offre_id = ?",
+            (statut, REPONSES[statut], offre_id))
 
 
 @app.route("/api/parametres")

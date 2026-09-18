@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alternance - pilotage des candidatures</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Navigation : une entree par etat du cycle de vie. Les rebuts non
+       actionnables (mission non technique, organisme de formation, absence de
+       canal) ne sont volontairement pas exposes. -->
+  <nav class="nav">
+    <div class="marque">
+      <h1 id="nom-profil">Alternance</h1>
+      <p id="sous-titre">chargement</p>
+    </div>
+
+    <div class="nav-groupe" id="nav-tri">
+      <div class="nav-titre">Tri</div>
+    </div>
+
+    <div class="nav-groupe" id="nav-pipeline">
+      <div class="nav-titre">Candidatures</div>
+    </div>
+
+    <div class="nav-groupe" id="nav-rebut">
+      <div class="nav-titre">Écartées</div>
+    </div>
+
+    <div class="nav-groupe" id="nav-reglages">
+      <div class="nav-titre">Réglages</div>
+      <button class="nav-item" id="nav-parametres">
+        <span class="point inerte"></span>
+        <span>Paramètres</span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="principal">
+
+    <!-- Barre d'actions globales -->
+    <div class="barre">
+      <h2 id="titre-vue">À valider</h2>
+      <span class="compte" id="compte-vue"></span>
+      <div class="pousse">
+        <button class="bouton" id="btn-reconnaissance">Inspecter les formulaires</button>
+        <button class="bouton" id="btn-lettres">Générer les lettres</button>
+        <button class="bouton primaire" id="btn-postuler">Préparer les candidatures</button>
+      </div>
+    </div>
+
+    <!-- Zone de lancement. Le depot du CV a migre vers Paramètres : il se
+         regle une fois, alors que cette barre sert a chaque collecte. -->
+    <section class="lancement" id="lancement">
+      <div class="rappel-cv" id="rappel-cv">
+        <div class="marqueur">↑</div>
+        <div class="texte">
+          <div class="nom" id="cv-nom">Aucun CV</div>
+          <div class="info" id="cv-info">à déposer dans les paramètres</div>
+        </div>
+      </div>
+
+      <div class="champ">
+        <label for="adresse">Ville de résidence</label>
+        <input type="text" id="adresse" placeholder="12 rue de la Paix, Paris">
+      </div>
+
+      <div class="champ">
+        <label for="rayon">Rayon (km)</label>
+        <input type="number" id="rayon" min="5" max="150" step="5">
+      </div>
+
+      <button class="bouton primaire" id="btn-collecte">Lancer l'analyse</button>
+    </section>
+
+    <!-- Suivi de la tache de fond en cours -->
+    <section class="progression" id="progression" hidden>
+      <div class="entete">
+        <span class="titre" id="prog-titre"></span>
+        <span class="compteur" id="prog-detail"></span>
+      </div>
+      <div class="piste"><b id="prog-barre" style="width:0"></b></div>
+      <div class="ligne" id="prog-ligne"></div>
+    </section>
+
+
+    <!-- Page Parametres : tout ce qui se regle une fois et vaut pour toutes
+         les collectes suivantes. -->
+    <section class="page-parametres" id="page-parametres" hidden>
+
+      <div class="bloc">
+        <h3>Profil</h3>
+        <p class="aide">Ces valeurs partent dans les lettres et les formulaires
+           de candidature. Un formulaire est un document contractuel : rien ne
+           doit y être approximatif.</p>
+        <div class="grille" id="grille-profil"></div>
+        <div class="paire-bouton">
+          <button class="bouton lien" data-defaut="profil">Rétablir les valeurs par défaut</button>
+        </div>
+      </div>
+
+      <div class="bloc">
+        <h3>CV de référence</h3>
+        <p class="aide">Joint à chaque candidature et utilisé pour repérer les
+           correspondances de mots-clés. L'ancien est archivé, jamais écrasé.</p>
+        <div class="depot" id="depot">
+          <div class="marqueur">↑</div>
+          <div class="texte">
+            <div class="nom" id="p-cv-nom">Aucun CV</div>
+            <div class="info" id="p-cv-info">Glissez un PDF ou cliquez</div>
+          </div>
+        </div>
+        <input type="file" id="cv-fichier" accept="application/pdf" hidden>
+      </div>
+
+      <div class="bloc">
+        <h3>Comptes connectés</h3>
+        <p class="aide">Certains sites exigent d'être connecté pour déposer une
+           candidature. Une fenêtre s'ouvre sur ton écran : tu saisis toi-même
+           tes identifiants, puis <strong>tu fermes la fenêtre</strong> — c'est
+           la fermeture qui déclenche l'enregistrement. Seuls les cookies sont
+           conservés, aucun mot de passe n'est lu ni stocké.
+           <br><strong>Connecte-toi par email et mot de passe.</strong> Les
+           widgets Google et LinkedIn sont bloqués dans cette fenêtre : ils
+           refusent les navigateurs pilotés et s'y rouvraient en boucle. La
+           connexion est ensuite détectée automatiquement.</p>
+        <div class="comptes" id="comptes"></div>
+      </div>
+
+      <div class="bloc">
+        <h3>Jeton Claude</h3>
+        <p class="aide">Produit par <code>claude setup-token</code>. Il fait
+           tourner la rédaction des lettres sur l'abonnement plutôt que sur
+           l'API facturée au token. Écrit dans <code>.env</code>, jamais
+           réaffiché.</p>
+        <div class="paire">
+          <input type="password" id="jeton" placeholder="sk-ant-oat01-..."
+                 autocomplete="off" spellcheck="false">
+          <button class="bouton" id="btn-jeton">Enregistrer</button>
+        </div>
+        <div class="etat" id="etat-jeton"></div>
+      </div>
+
+      <div class="bloc">
+        <h3>Nature des contrats</h3>
+        <p class="aide">Le BUT impose un stage en plus de l'alternance :
+           8 semaines en BUT2, 14 semaines en BUT3. Les deux natures se
+           cherchent séparément, et une offre dont la nature n'est pas cochée
+           est écartée, quelle que soit sa pertinence par ailleurs.</p>
+
+        <div class="natures">
+          <label class="nature" data-cle="alternance">
+            <input type="checkbox" id="cherche-alternance">
+            <span class="corps">
+              <span class="titre">Alternance</span>
+              <span class="exemples">contrat d'apprentissage ou de professionnalisation</span>
+            </span>
+          </label>
+          <label class="nature" data-cle="stage">
+            <input type="checkbox" id="cherche-stages">
+            <span class="corps">
+              <span class="titre">Stage</span>
+              <span class="exemples">convention de stage, à temps plein</span>
+            </span>
+          </label>
+        </div>
+
+        <div class="grille" id="champ-duree-stage">
+          <div class="champ">
+            <label for="duree-stage">Durée visée (semaines)</label>
+            <input type="number" id="duree-stage" min="2" max="52" step="1">
+            <span class="note">8 pour un BUT2, 14 pour un BUT3</span>
+          </div>
+          <div class="champ">
+            <label for="ecart-court">Toléré en plus court</label>
+            <input type="number" id="ecart-court" min="0" max="26" step="1">
+            <span class="note">un stage trop court ne validera pas le semestre :
+              à garder serré</span>
+          </div>
+          <div class="champ">
+            <label for="ecart-long">Toléré en plus long</label>
+            <input type="number" id="ecart-long" min="0" max="40" step="1">
+            <span class="note">la plupart des stages du marché durent
+              26 semaines : il en faut 12 pour les voir remonter sur une
+              cible à 14</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bloc">
+        <h3>Critères de sélection</h3>
+        <p class="aide">Appliqués au moment du scoring. Une modification ne
+           change pas les offres déjà en base tant qu'un nouveau calcul n'a pas
+           été lancé.</p>
+        <div class="grille">
+          <div class="champ">
+            <label for="p-adresse">Adresse de référence</label>
+            <input type="text" id="p-adresse">
+            <span class="note">sert au calcul des distances, à vol d'oiseau</span>
+          </div>
+          <div class="champ">
+            <label for="p-rayon">Rayon (km)</label>
+            <input type="number" id="p-rayon" min="5" max="150" step="5">
+          </div>
+          <div class="champ">
+            <label for="p-seuil">Seuil d'adéquation (%)</label>
+            <input type="number" id="p-seuil" min="0" max="100" step="5">
+            <span class="note">en dessous, l'offre part en « score insuffisant »</span>
+          </div>
+          <div class="champ">
+            <label for="p-duree">Durée de contrat acceptée (mois)</label>
+            <input type="number" id="p-duree" min="6" max="36" step="1">
+            <span class="note">au-delà, l'offre passe en arbitrage manuel</span>
+          </div>
+          <div class="champ">
+            <label for="p-prime">Prime grand groupe</label>
+            <input type="number" id="p-prime" min="0" max="100" step="5">
+            <span class="note">points ajoutés quand l'employeur est un grand compte</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bloc">
+        <h3>Familles de postes exclues</h3>
+        <p class="aide">Un titre qui relève d'une famille cochée est écarté sans
+           appel, même si l'annonce coche par ailleurs tous les signaux
+           techniques.</p>
+        <div class="exclusions" id="exclusions"></div>
+      </div>
+
+      <div class="bloc">
+        <h3>Termes exclus supplémentaires</h3>
+        <p class="aide">Un terme par ligne, en langage courant. Comparé en mot
+           entier sur le titre de l'offre : « data » n'écartera pas
+           « database ».</p>
+
+        <div class="champ-long">
+          <label for="termes-souples">Écarter, sauf si le poste est informatique</label>
+          <textarea id="termes-souples" rows="3"
+                    placeholder="data&#10;consultant"></textarea>
+          <span class="note">À privilégier. Un titre qui prouve par ailleurs
+            qu'il s'agit d'un poste technique lève l'exclusion : « Développement
+            Outils orienté IA &amp; Data » survit à un terme « data ».</span>
+        </div>
+
+        <div class="champ-long">
+          <label for="termes">Écarter systématiquement</label>
+          <textarea id="termes" rows="3"
+                    placeholder="chef de rayon&#10;téléconseiller"></textarea>
+          <span class="note">Sans appel. À réserver aux intitulés qui n'ont
+            aucune chance d'être intéressants.</span>
+        </div>
+
+        <div class="paire-bouton">
+          <button class="bouton" id="btn-impact">Voir ce que ça écarterait</button>
+        </div>
+        <div class="impact" id="impact"></div>
+      </div>
+
+      <div class="bloc">
+        <h3>Codes ROME collectés</h3>
+        <p class="aide">Déterminent ce que La Bonne Alternance renvoie. Chaque
+           code est un métier du répertoire officiel ; élargir la liste élargit
+           la collecte, et allonge d'autant la durée de l'analyse.</p>
+        <div class="etiquettes" id="romes"></div>
+        <div class="ajout">
+          <input type="text" id="rome-nouveau" placeholder="M1801"
+                 maxlength="5" spellcheck="false">
+          <button class="bouton" id="btn-rome">Ajouter</button>
+          <button class="bouton lien" data-defaut="romes">Valeurs par défaut</button>
+        </div>
+        <div class="suggestions" id="rome-suggestions"></div>
+      </div>
+
+      <div class="bloc">
+        <h3>Mots-clés techniques</h3>
+        <p class="aide">Cherchés en mot entier dans le titre et la description,
+           comptés double dans le titre. Ils forment l'axe technique, qui pèse
+           45&nbsp;% de l'adéquation. Le poids va de 1 à 30 : réserve les valeurs
+           hautes à ce qui te distingue vraiment.</p>
+        <div class="etiquettes poids" id="mots-cles"></div>
+        <div class="ajout">
+          <input type="text" id="mot-nouveau" placeholder="terraform" spellcheck="false">
+          <input type="number" id="poids-nouveau" placeholder="8" min="1" max="30">
+          <button class="bouton" id="btn-mot">Ajouter</button>
+          <button class="bouton lien" data-defaut="mots_cles">Valeurs par défaut</button>
+        </div>
+      </div>
+
+      <div class="bloc">
+        <h3>Organismes de formation bloqués</h3>
+        <p class="aide">Émetteurs connus d'annonces qui vendent une formation
+           plutôt qu'un poste. Comparés en mot entier sur le nom de l'employeur :
+           « studi » n'attrapera pas « Leikir Studio ».</p>
+        <div class="etiquettes" id="blocklist"></div>
+        <div class="ajout">
+          <input type="text" id="ecole-nouvelle" placeholder="nom de l'organisme"
+                 spellcheck="false">
+          <button class="bouton" id="btn-ecole">Ajouter</button>
+          <button class="bouton lien" data-defaut="ecole_blocklist">Valeurs par défaut</button>
+        </div>
+      </div>
+
+      <div class="pied">
+        <button class="bouton primaire" id="btn-parametres">Enregistrer</button>
+        <button class="bouton" id="btn-rescore">Recalculer les scores</button>
+        <span class="etat" id="etat-parametres"></span>
+      </div>
+    </section>
+
+    <div class="contenu" id="contenu">
+      <div class="liste" id="liste"></div>
+      <aside class="detail" id="detail"></aside>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

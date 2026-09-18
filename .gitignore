@@ -1,0 +1,48 @@
+# Secrets - ne jamais commiter
+.env
+*.key
+credentials*.json
+token*.json
+token_cache.json
+
+# Identite du candidat
+# config.py ne porte qu'un profil d'exemple ; les vraies coordonnees vivent ici.
+identite_locale.py
+# Le prompt systeme contient le parcours, les projets et les competences
+# reelles. Le .exemple.md qui l'accompagne est, lui, versionne.
+prompts/systeme_lettre.md
+
+# Pieces personnelles
+# CV, photo, source LaTeX, dossier de motivation : tout ce qui part en piece
+# jointe chez un recruteur. Le dossier lui-meme est conserve par son .gitkeep.
+templates/cv/*
+!templates/cv/.gitkeep
+templates/dossier/*
+!templates/dossier/.gitkeep
+
+# Base de donnees et donnees generees
+*.db
+*.db-journal
+*.sqlite3
+data/
+lettres/
+exports/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Playwright - profils et sessions de navigateur valent des mots de passe
+.playwright/
+playwright-report/
+screenshots/
+data/profils/
+*.encours
+*.precedent
+
+# Outillage local
+.claude/
+.vscode/
+.idea/

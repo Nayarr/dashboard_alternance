@@ -1,0 +1,9 @@
+requests>=2.31
+python-dotenv>=1.0
+
+# Etape 2 - generation des lettres et des PDF
+pypdf>=4.0
+python-docx>=1.1
+
+# Etape 5 - collecte Welcome to the Jungle / HelloWork
+playwright>=1.44

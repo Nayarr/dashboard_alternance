@@ -645,6 +645,19 @@ button { cursor: pointer; }
 }
 .compte-site .bouton { padding: 6px 11px; font-size: 12px; }
 
+/* Detail d'un echec : masque tant que tout va bien, deplie a la demande.
+   Une trace de 200 lignes affichee d'office noierait le message utile. */
+.progression .echec { margin-top: 10px; }
+.progression .raison {
+  font-size: 12.5px; margin: 0 0 8px; color: var(--texte);
+}
+.progression .trace {
+  margin: 8px 0 0; padding: 10px; max-height: 260px; overflow: auto;
+  background: var(--surface-2); border-radius: 3px;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+}
+
 /* Code d'appareil Microsoft : affiche pendant la connexion, donc transitoire.
    Il doit se lire d'un coup d'oeil et se recopier sans erreur, d'ou la chasse
    fixe et l'espacement des caracteres. */

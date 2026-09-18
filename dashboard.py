@@ -22,6 +22,7 @@ from werkzeug.utils import secure_filename
 import chemins
 import config
 import db
+import journal
 import parametres
 import taches
 import texte
@@ -34,6 +35,51 @@ app = Flask(__name__, static_folder=None)
 # Outil local en evolution constante : sans cela le navigateur sert une version
 # en cache de style.css ou app.js et les modifications semblent sans effet.
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+
+
+@app.errorhandler(Exception)
+def toute_erreur(e):
+    """Aucune erreur ne doit finir en page HTML de Flask.
+
+    L'interface ne parle que JSON : une exception non rattrapee lui arrivait
+    sous forme de page d'erreur, que `reponse.json()` ne savait pas lire, et
+    l'utilisateur voyait « HTTP 500 » sans rien de plus. La trace complete part
+    dans data/logs/app.log, la phrase utile part a l'ecran.
+    """
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return jsonify({"erreur": e.description, "code": e.code}), e.code
+
+    journal.exception(f"{request.method} {request.path}", e)
+    return jsonify({
+        "erreur": journal.expliquer(f"{type(e).__name__}: {e}"),
+        "detail": f"{type(e).__name__}: {e}",
+        "journal": "data/logs/app.log",
+    }), 500
+
+
+@app.route("/api/journal")
+def api_journal():
+    """Les dernieres lignes du journal, pour diagnostiquer sans ouvrir un
+    terminal ni chercher le fichier."""
+    return jsonify({
+        "chemin": str(journal.FICHIER),
+        "existe": journal.FICHIER.exists(),
+        "contenu": journal.lire(int(request.args.get("lignes", 120))),
+    })
+
+
+@app.route("/api/tache/<int:tache_id>/journal")
+def api_journal_tache(tache_id):
+    """Sortie complete d'une tache : c'est ce qu'on veut lire quand elle
+    echoue, et le message resume ne suffit pas."""
+    conn = db.connect()
+    r = conn.execute("SELECT type, statut, message, journal FROM taches "
+                     "WHERE id = ?", (tache_id,)).fetchone()
+    conn.close()
+    if r is None:
+        return jsonify({"erreur": "tache introuvable"}), 404
+    return jsonify(dict(r))
 
 
 @app.after_request

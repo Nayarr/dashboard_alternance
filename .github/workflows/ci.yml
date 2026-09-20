@@ -93,6 +93,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      # Aucune dependance installee, volontairement : le controle est
+      # statique. setup-python sert seulement a ne pas dependre de la version
+      # preinstallee sur l'image du runner.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
 
       # Une chaine coupee par une fin de ligne a deja rendu app.js invalide
       # dans son entier : la page se chargeait, mais aucun bouton ne

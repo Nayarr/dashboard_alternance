@@ -98,7 +98,7 @@ jobs:
       # dans son entier : la page se chargeait, mais aucun bouton ne
       # fonctionnait, et rien ne le signalait.
       - name: app.js est-il analysable
-        run: node --check web/app.js
+        run: node --check alternance/interface/statique/app.js
 
       - name: Les identifiants cites existent-ils dans le HTML
         run: python outils/verifier_interface.py

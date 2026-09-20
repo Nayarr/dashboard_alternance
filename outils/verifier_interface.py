@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Coherence entre app.js, index.html et les routes de dashboard.py.
+"""Coherence entre app.js, index.html et les routes du serveur.
 
     python outils/verifier_interface.py
 
@@ -21,9 +21,10 @@ import sys
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
-JS = (BASE / "web" / "app.js").read_text(encoding="utf-8")
-HTML = (BASE / "web" / "index.html").read_text(encoding="utf-8")
-PY = (BASE / "dashboard.py").read_text(encoding="utf-8")
+INTERFACE = BASE / "alternance" / "interface"
+JS = (INTERFACE / "statique" / "app.js").read_text(encoding="utf-8")
+HTML = (INTERFACE / "statique" / "index.html").read_text(encoding="utf-8")
+PY = (INTERFACE / "serveur.py").read_text(encoding="utf-8")
 
 
 def identifiants_disponibles():
@@ -80,8 +81,8 @@ def main():
     # doivent exister cote serveur. Une faute de frappe dans REBUTS retire
     # silencieusement un bouton, sans erreur nulle part.
     sys.path.insert(0, str(BASE))
-    import dashboard
-    connus = set(dashboard.CLES_VISIBLES)
+    from alternance.interface import serveur
+    connus = set(serveur.CLES_VISIBLES)
 
     bloc_rebuts = re.search(r"const REBUTS = \[([^\]]*)\]", JS)
     cites = set(re.findall(r'"([a-z_]+)"', bloc_rebuts.group(1))) if bloc_rebuts else set()

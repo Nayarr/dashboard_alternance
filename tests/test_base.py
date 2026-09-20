@@ -11,8 +11,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import chemins
-import db
+from alternance import chemins
+from alternance import db
 
 
 class BaseTemporaire(unittest.TestCase):

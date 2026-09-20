@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import db  # noqa: E402
+from alternance import db  # noqa: E402
 
 offre_id = int(sys.argv[1]) if len(sys.argv) > 1 else 925
 conn = db.connect()

@@ -135,7 +135,20 @@ if __name__ == "__main__":
     load_dotenv(BASE / ".env")
 
     interactif = "--connexion" in sys.argv
-    token = jeton(interactif=interactif)
+
+    manquantes = [v for v in ("GRAPH_CLIENT_ID", "GRAPH_TENANT_ID")
+                  if not os.environ.get(v)]
+    if manquantes:
+        sys.exit(f"{' et '.join(manquantes)} absent(es) du .env. Voir la "
+                 "section \"Envoyer par email\" du README.")
+
+    # Sans --connexion, ce script sert a repondre a une seule question : quel
+    # compte est connecte. Une pile d'appels Python n'y repond pas.
+    try:
+        token = jeton(interactif=interactif)
+    except RuntimeError as e:
+        sys.exit(str(e))
+
     moi = qui_suis_je(token)
     if moi:
         print(f"Connecte : {moi.get('displayName')} "

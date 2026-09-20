@@ -242,6 +242,9 @@ def api_contexte():
             "taille_ko": round(chemins.CV.stat().st_size / 1024) if chemins.CV.exists() else 0,
         },
         "tache": taches.tache_en_cours(),
+        # Sert a reafficher le panneau d'erreur apres un rechargement : sans
+        # lui, un echec disparaissait de l'ecran des que la page repartait.
+        "dernier_echec": taches.dernier_echec(),
     })
 
 
@@ -335,12 +338,21 @@ def _suivre_reponse(conn, offre_id, statut):
     ce report, la date de relance restait armee apres un refus.
     """
     if statut == "envoyee":
-        # Depot fait a la main - email, formulaire d'un ATS, candidature en
-        # personne. Sans cette ligne, l'offre serait "envoyee" sans qu'aucune
-        # relance ne soit jamais prevue.
         existe = conn.execute(
             "SELECT 1 FROM candidatures WHERE offre_id = ?", (offre_id,)).fetchone()
-        if not existe:
+        if existe:
+            # Retour en arriere depuis un refus : "Rouvrir le suivi" remettait
+            # l'offre en attente sans jamais rearmer la relance, qu'une reponse
+            # precedente avait desarmee. L'offre restait donc en suspens sans
+            # que rien ne la rappelle.
+            conn.execute(
+                "UPDATE candidatures SET statut = 'envoyee', type_reponse = NULL, "
+                "date_reponse = NULL, date_relance_prevue = date('now', '+7 days') "
+                "WHERE offre_id = ?", (offre_id,))
+        else:
+            # Depot fait a la main - email, formulaire d'un ATS, candidature en
+            # personne. Sans cette ligne, l'offre serait "envoyee" sans qu'aucune
+            # relance ne soit jamais prevue.
             conn.execute(
                 "INSERT INTO candidatures (offre_id, canal, date_preparation, "
                 "date_envoi, statut, date_relance_prevue) VALUES "

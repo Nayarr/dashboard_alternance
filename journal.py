@@ -50,6 +50,10 @@ DIAGNOSTICS = [
     (r"session (?:WTTJ )?expiree|authenticate|/signin",
      "La session du site a expire. Page Parametres, bloc « Comptes connectes » : "
      "reconnecter le compte concerne."),
+    (r"no such (?:column|table)",
+     "La base date d'une version anterieure du code. Faire `git pull` puis "
+     "relancer : la colonne manquante est ajoutee automatiquement a la "
+     "prochaine ouverture."),
     (r"database is locked",
      "La base est verrouillee par un autre processus. Fermer les autres "
      "instances du tableau de bord, puis relancer."),

@@ -146,7 +146,20 @@ STATUTS_FIGES = {"lettre_prete", "envoyee", "entretien", "refus", "ats_externe",
                  "signee", "valide_manuel", "rejete_manuel"}
 
 
+# Le schema n'est verifie qu'une fois par processus : la verification coute
+# un executescript, inutile a chaque ouverture de connexion.
+_schema_verifie = False
+
+
 def connect():
+    """Connexion prete a l'emploi, sur une base dont le schema est a jour.
+
+    C'est `connect` et non `init` qui s'en charge, parce que la moitie des
+    points d'entree n'appelaient que `connect` : sur une installation neuve,
+    lancer le tableau de bord avant toute collecte donnait
+    "no such table: offres", et une base creee avant l'ajout d'une colonne
+    faisait echouer le script qui l'ecrivait — "no such column: url_ats".
+    """
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     # timeout : le dashboard garde la base ouverte pendant qu'un script de
     # collecte ou de reconnaissance ecrit. Sans attente, l'ecriture echouait
@@ -155,6 +168,12 @@ def connect():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 30000")
+
+    global _schema_verifie
+    if not _schema_verifie:
+        conn.executescript(SCHEMA)
+        migrer(conn)
+        _schema_verifie = True
     return conn
 
 
@@ -167,6 +186,12 @@ COLONNES_TARDIVES = [
     # a ne pas confondre avec 0 qui signifie "le formulaire n'en veut pas".
     ("lettre_texte", "INTEGER"),
     ("lettre_fichier", "INTEGER"),
+    # Domaine vers lequel le formulaire redirige quand l'offre est portee par
+    # l'ATS de l'employeur. Ecrite par reconnaissance.py, lue par le panneau de
+    # detail. Elle manquait ici : presente sur les bases nees avant le menage,
+    # absente de toute installation neuve, ou reconnaissance.py s'arretait sur
+    # "no such column: url_ats" des la premiere offre redirigee.
+    ("url_ats", "TEXT"),
 ]
 
 
@@ -182,11 +207,8 @@ def migrer(conn):
 
 
 def init():
-    conn = connect()
-    conn.executescript(SCHEMA)
-    migrer(conn)
-    conn.commit()
-    return conn
+    """Conservee pour les appelants existants : `connect` fait deja le travail."""
+    return connect()
 
 
 def empreinte(entreprise, intitule):

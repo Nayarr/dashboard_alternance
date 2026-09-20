@@ -125,18 +125,30 @@ def appeler_claude(contexte, nature=None):
     if config.LETTRE_RELECTURE:
         systeme += "\n" + RELECTURE
 
-    resultat = subprocess.run(
-        ["claude", "-p", prompt,
-         "--append-system-prompt", systeme,
-         # "Skill" et pas "" : --allowedTools est une liste d'outils autorises
-         # SANS demande de permission, pas une restriction de ce qui existe.
-         # Avec une liste vide, le Skill tool restait present mais toute
-         # invocation attendait une approbation que personne ne peut donner en
-         # mode headless. Les skills du projet etaient donc inertes.
-         "--allowedTools", "Skill"],
-        capture_output=True, text=True, encoding="utf-8",
-        env=env, timeout=TIMEOUT, cwd=str(BASE),
-    )
+    try:
+        resultat = subprocess.run(
+            ["claude", "-p", prompt,
+             "--append-system-prompt", systeme,
+             # "Skill" et pas "" : --allowedTools est une liste d'outils
+             # autorises SANS demande de permission, pas une restriction de ce
+             # qui existe. Avec une liste vide, le Skill tool restait present
+             # mais toute invocation attendait une approbation que personne ne
+             # peut donner en mode headless. Les skills etaient donc inertes.
+             "--allowedTools", "Skill"],
+            capture_output=True, text=True, encoding="utf-8",
+            env=env, timeout=TIMEOUT, cwd=str(BASE),
+        )
+    except FileNotFoundError:
+        # Sans ce rattrapage, l'interface affichait « FileNotFoundError:
+        # [WinError 2] Le fichier specifie est introuvable » : exact, et
+        # parfaitement muet sur le fichier en question. Le message doit nommer
+        # ce qui manque et dire comment l'obtenir.
+        raise RuntimeError(
+            "La commande `claude` est introuvable. Les lettres sont redigees "
+            "par Claude Code : l'installer avec "
+            "`npm install -g @anthropic-ai/claude-code`, puis produire un "
+            "jeton avec `claude setup-token`. Le reste de l'outil fonctionne "
+            "sans lui.") from None
     if resultat.returncode != 0:
         raise RuntimeError((resultat.stderr or resultat.stdout)[:400])
     return resultat.stdout.strip()

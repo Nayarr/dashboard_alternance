@@ -1,28 +1,40 @@
 # dashboard_alternance
 
+[![CI](https://github.com/Nayarr/dashboard_alternance/actions/workflows/ci.yml/badge.svg)](https://github.com/Nayarr/dashboard_alternance/actions/workflows/ci.yml)
+
 Recherche d'alternance et de stage automatisee de bout en bout : collecte des
 offres sur cinq sources, dedoublonnage, notation, redaction des lettres, puis
-depot de la candidature dans le formulaire du site. L'envoi final reste une
-decision humaine.
+depot de la candidature dans le formulaire du site. L'envoi reste declenche
+par un humain, jamais par une minuterie ni par un score.
 
 Concu pour un BUT Informatique en Ile-de-France, mais **rien n'est code en
 dur** : profil, mots-cles, codes ROME, familles de postes exclues, blocklist
 d'organismes de formation et seuils se reglent depuis l'interface.
 
-> Aucune candidature ne part sans le drapeau explicite `--confirmer`. Par
-> defaut tout tourne en dry-run : les formulaires sont remplis jusqu'a la
-> derniere etape, jamais valides.
+> **Le bouton « Envoyer les candidatures » envoie pour de vrai.** Il demande
+> confirmation en annoncant le nombre, puis les candidatures partent chez les
+> employeurs. C'est definitif : une candidature envoyee ne se rattrape pas.
+>
+> En ligne de commande, le defaut est l'inverse : sans `--confirmer`, les
+> formulaires sont remplis jusqu'a la derniere etape et jamais valides.
 
 ---
 
 ## Mise en route
 
+Il faut **Python 3.11 ou plus**, et **Claude Code** si l'on veut que les
+lettres soient redigees : c'est lui qui les ecrit, sur ton abonnement. Sans
+lui, tout le reste fonctionne — collecte, tri, depot des candidatures — et le
+bouton « Generer les lettres » signale simplement que la commande est
+introuvable.
+
 ```bash
+npm install -g @anthropic-ai/claude-code   # seulement pour les lettres
 pip install -r requirements.txt
 playwright install chromium
 ```
 
-Quatre choses a mettre en place. L'outil demarre sans elles, avec un profil
+Cinq choses a mettre en place. L'outil demarre sans elles, avec un profil
 fictif : suffisant pour explorer l'interface, pas pour candidater.
 
 **1. Identite**
@@ -61,17 +73,81 @@ dont dispose le redacteur : ce qui n'y figure pas ne sera pas ecrit, et c'est
 volontaire — une lettre qui invente un chiffre se disqualifie plus vite qu'une
 lettre sobre.
 
-**4. Skills de redaction**
+**4. Skills de redaction : rien a faire**
 
-Rien a installer : les trois skills sont dans le depot, sous
-`.claude/skills/`. Claude Code les trouve tout seul des lors que les commandes
-sont lancees depuis la racine du projet. Ils sont decrits plus bas.
+Les trois skills qui relisent les lettres sont livres avec le depot, sous
+`.claude/skills/`. Ils sont trouves et appliques automatiquement, y compris
+quand tout est pilote depuis l'interface : le dossier de travail est calcule
+a partir de l'emplacement du code, pas de l'endroit d'ou l'on lance la
+commande.
+
+Rien a installer, rien a configurer, rien a copier. Ils entrent en jeu au
+clic sur « Generer les lettres ».
+
+Le seul reglage les concernant est la case **Relecture des lettres**, page
+Parametres : cochee, les lettres sont nettement meilleures mais coutent huit
+fois plus de jetons. Les chiffres sont plus bas.
 
 **5. CV**
 
 Deposer le PDF dans `templates/cv/` (ou par glisser-deposer depuis la page
 Parametres). Son nom est conserve tel quel : il part en piece jointe chez le
 recruteur.
+
+---
+
+## Mettre a jour
+
+```bash
+git pull
+pip install -r requirements.txt
+```
+
+Arreter le tableau de bord avant de tirer : il tournerait sur des modules que
+la mise a jour vient de deplacer.
+
+Rien de personnel n'est touche. `.env`, `data/` (base, reglages, sessions),
+`templates/cv/`, `templates/dossier/`, `prompts/systeme_lettre.md` et
+`lettres/` sont ignores par git : une mise a jour ne les lit ni ne les ecrit.
+
+La base se repare seule si une colonne a ete ajoutee entre-temps, a la
+premiere ouverture. Il n'y a jamais a la supprimer ni a recollecter.
+
+### Si `git pull` fabrique un commit de fusion
+
+L'historique a ete reecrit une fois, le 20 septembre 2026, pour passer a une
+branche par changement. Un depot clone avant cette date a donc une ligne du
+temps differente : `git pull` y reussit, mais en fusionnant deux histoires et
+en dupliquant une dizaine de commits. Le contenu des fichiers finit correct,
+l'historique non.
+
+Pour repartir proprement, sans rien perdre de personnel :
+
+```bash
+git fetch origin
+git reset --hard origin/main
+```
+
+`reset --hard` ne touche que les fichiers suivis par git. Tout ce qui est
+listé au paragraphe precedent reste en place.
+
+### Les commandes ont change le 20 septembre 2026
+
+Les douze scripts de la racine sont remplaces par un point d'entree unique.
+Les options, elles, sont identiques.
+
+| Avant | Maintenant |
+|---|---|
+| `python dashboard.py` | `python cli.py interface` |
+| `python sourcing.py` | `python cli.py collecte` |
+| `python generer_lettres.py --limite 5` | `python cli.py lettres --limite 5` |
+| `python reconnaissance.py` | `python cli.py reconnaissance` |
+| `python postuler_lba.py --confirmer` | `python cli.py postuler-lba --confirmer` |
+| `python connecter_compte.py wttj` | `python cli.py connecter wttj` |
+| `python envoyer.py --offre 925` | `python cli.py envoyer --offre 925` |
+| `python inspect_db.py resume` | `python cli.py base resume` |
+
+`python cli.py` sans argument liste tout.
 
 ---
 
@@ -317,8 +393,9 @@ Application Flask locale, **sans authentification** : elle ecoute sur
   tranche, avec la raison du doute. Valider / Rejeter.
 - **Vivier** — les offres retenues, triees par score.
 - **Pipeline** — lettre prete, envoyee, entretien, refus, signee.
-- **Vues de rejet** (`hors_cible`, `ecole`, `ecarte`, `sans_canal`) —
-  consultables, avec un bouton Recuperer pour rattraper un faux positif.
+- **Vues de rejet** (`hors_cible`, `ecole`, `ecarte`, `sans_canal`,
+  `ats_externe`) — consultables, avec un bouton Recuperer pour rattraper un
+  faux positif.
 - **Parametres** — CV, jeton Claude, comptes de sites, profil, adresse,
   relecture des lettres, mots-cles, ROME, exclusions, seuils.
 
@@ -501,6 +578,7 @@ alternance/
   interface/            serveur.py, taches.py, statique/
 outils/                 diagnostics et garde-fous, hors produit
 tests/                  suite unittest
+.github/                workflow d'integration continue, gabarit de proposition
 ```
 
 Une dependance ne remonte jamais : `sources/` ignore `collecte`, qui ignore
@@ -526,11 +604,70 @@ Ce sont des choix, pas des manques :
   details Apec, Cloudflare sur les details JobTeaser : les donnees sont
   abandonnees, pas arrachees.
 - **Il ne cree aucun compte** et ne stocke aucun mot de passe.
-  `connecter_compte.py` ouvre un navigateur, la connexion se fait a la main,
+  `cli.py connecter` ouvre un navigateur, la connexion se fait a la main,
   seuls les cookies resultants sont conserves dans `data/` — un fichier de
   session vaut un mot de passe.
-- **Il n'envoie rien tout seul.** `--confirmer` est obligatoire.
+- **Il n'envoie rien de lui-meme.** Aucune minuterie, aucun envoi declenche
+  par un score : il faut un clic sur « Envoyer les candidatures », ou
+  `--confirmer` en ligne de commande. Le clic, lui, envoie reellement.
 - **Il ne poste pas sur France Travail.**
+
+---
+
+## Contribuer
+
+```bash
+python -m unittest discover -s tests -t .   # 46 tests, une seconde et demie
+python outils/verifier_depot.py             # rien de personnel n'est versionne
+python outils/verifier_interface.py         # app.js, index.html et les routes
+```
+
+Les tests n'ecrivent ni dans la base ni dans les reglages : ils redirigent
+`db.DB_PATH` et `parametres.FICHIER` vers un dossier temporaire. Les lancer
+depuis un poste en cours d'utilisation ne risque rien.
+
+Ils ne couvrent pas au hasard : chacun gele une panne reellement rencontree —
+« vite » qui matchait dans « eviter », une base neuve sans aucune table, deux
+offres du meme employeur partageant une lettre, une tache tuee annoncant sa
+derniere ligne comme motif d'echec. Un test qui ne correspond a rien de vecu
+donne surtout l'illusion d'etre couvert.
+
+### Les deux garde-fous
+
+`verifier_depot.py` refuse tout fichier personnel ou secret dans le suivi
+git : CV, jetons, base, lettres, cles privees. Le controle est structurel —
+noms de fichiers, formes de secrets, regles du `.gitignore` — et non une
+liste de donnees a proteger : y ecrire une adresse reviendrait a la publier
+dans le fichier meme cense la tenir hors du depot.
+
+`verifier_interface.py` relie `app.js`, `index.html` et les routes du
+serveur. Un identifiant cite mais inexistant, une route appelee mais non
+declaree, un statut mal orthographie : trois erreurs qui ne font rien
+planter et retirent un bouton en silence. Le controle est statique, il
+n'importe rien et repond en une seconde.
+
+### Integration continue
+
+Le workflow tourne sur chaque proposition et sur chaque push vers `main` :
+
+| Job | Ce qu'il verifie |
+|---|---|
+| depot | aucun fichier personnel ni secret, `.gitignore` complet |
+| description | la proposition suit le gabarit de `.github/` |
+| tests | Linux et Windows, Python 3.11 et 3.13 |
+| interface | `node --check` sur app.js, coherence avec le serveur |
+| qualite | `ruff`, en avertissement seulement |
+
+Le garde-fou du depot passe en premier et sans dependances : un CV pousse par
+erreur ne se retire pas d'un historique public, il se revoque. Autant le
+savoir avant d'attendre l'installation des paquets.
+
+### Une branche par changement
+
+`feat/`, `fix/`, `docs/`, `refactor/`, `chore/` selon la nature. La
+description suit le gabarit — ce que ca change, pourquoi, comment c'est
+verifie, risques et limites — et la CI refuse une section vide. Un gabarit
+que personne ne verifie se vide en trois semaines.
 
 ---
 

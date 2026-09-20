@@ -57,9 +57,22 @@ REGLES_ATTENDUES = [".env", "data/", "lettres/", "prompts/systeme_lettre.md",
 
 
 def suivis():
-    sortie = subprocess.run(["git", "ls-files"], cwd=BASE,
-                            capture_output=True, text=True, check=True)
-    return [l.strip() for l in sortie.stdout.splitlines() if l.strip()]
+    """Ce qui est versionne, PLUS ce qui le serait au prochain `git add`.
+
+    `git ls-files` seul ne voit que les fichiers deja suivis. Un fichier neuf
+    echappait donc au controle tant qu'il n'etait pas stage : lance avant
+    `git add`, le garde-fou disait « aucun secret », et la CI trouvait le
+    probleme une fois le commit pousse. C'est exactement l'ordre inverse de
+    celui qui sert a quelque chose.
+
+    --others ajoute les fichiers non suivis, --exclude-standard retire ceux
+    que le .gitignore couvre : il reste ce qui partirait vraiment.
+    """
+    sortie = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=BASE, capture_output=True, text=True, check=True)
+    # --cached et --others peuvent nommer le meme chemin.
+    return sorted({l.strip() for l in sortie.stdout.splitlines() if l.strip()})
 
 
 def main():

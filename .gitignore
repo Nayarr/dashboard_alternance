@@ -44,6 +44,9 @@ data/profils/
 *.precedent
 
 # Outillage local
-.claude/
+# .claude/skills est versionne : les skills de redaction font partie de
+# l'outil, generer_lettres.py les invoque a chaque lettre.
+.claude/*
+!.claude/skills/
 .vscode/
 .idea/

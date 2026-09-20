@@ -99,6 +99,17 @@ def nature_contrat(o):
     return base + " La duree annoncee correspond : ne reviens pas dessus."
 
 
+# Consigne ajoutee au prompt systeme quand la relecture est active. Elle est
+# ici et non dans systeme_lettre.md parce que ce fichier-la est personnel et
+# recopie depuis un .exemple : une consigne technique n'a pas a dependre du
+# fait que quelqu'un ait pense a la reporter.
+RELECTURE = """
+Avant de rediger, invoque le skill lettre-motivation et applique sa methode.
+Une fois la lettre ecrite, invoque humanizer-fr puis lettre-motivation-anti-ia
+et corrige le texte selon leurs retours. Ne renvoie que la lettre finale, sans
+commentaire sur les corrections apportees."""
+
+
 def appeler_claude(contexte, nature=None):
     env = dict(os.environ)
     token = env.get("CLAUDE_CODE_OAUTH_TOKEN")
@@ -110,10 +121,19 @@ def appeler_claude(contexte, nature=None):
         + ((nature + "\n\n") if nature else "")
         + contexte
     )
+    systeme = SYSTEME.read_text(encoding="utf-8")
+    if config.LETTRE_RELECTURE:
+        systeme += "\n" + RELECTURE
+
     resultat = subprocess.run(
         ["claude", "-p", prompt,
-         "--append-system-prompt", SYSTEME.read_text(encoding="utf-8"),
-         "--allowedTools", ""],
+         "--append-system-prompt", systeme,
+         # "Skill" et pas "" : --allowedTools est une liste d'outils autorises
+         # SANS demande de permission, pas une restriction de ce qui existe.
+         # Avec une liste vide, le Skill tool restait present mais toute
+         # invocation attendait une approbation que personne ne peut donner en
+         # mode headless. Les skills du projet etaient donc inertes.
+         "--allowedTools", "Skill"],
         capture_output=True, text=True, encoding="utf-8",
         env=env, timeout=TIMEOUT, cwd=str(BASE),
     )
@@ -158,7 +178,16 @@ def main():
     p.add_argument("--limite", type=int, default=5)
     p.add_argument("--offre", type=int)
     p.add_argument("--force", action="store_true")
+    p.add_argument("--sans-relecture", action="store_true",
+                   help="ignore les skills de relecture, environ 8 fois moins "
+                        "de jetons et 4 fois plus rapide")
     args = p.parse_args()
+
+    if args.sans_relecture:
+        config.LETTRE_RELECTURE = False
+    if config.LETTRE_RELECTURE:
+        print("relecture par les skills active "
+              "(--sans-relecture pour l'ignorer)\n")
 
     conn = db.connect()
     if args.offre:

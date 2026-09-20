@@ -102,6 +102,17 @@ DEPARTEMENTS = ["75", "92", "93", "94", "77", "78", "91", "95"]
 RECHERCHE_ALTERNANCE = True
 RECHERCHE_STAGES = False
 
+# --- Relecture des lettres par les skills ----------------------------------
+#
+# Trois skills vivent dans .claude/skills : lettre-motivation avant la
+# redaction, humanizer-fr et lettre-motivation-anti-ia apres. Le gain est
+# reel - phrases plus courtes, moins de tournures d'IA, faits plus precis -
+# mais il se paie : mesure sur une meme offre, 10 tours de conversation au
+# lieu d'un, 570 000 jetons au lieu de 70 000, 54 secondes au lieu de 12.
+#
+# A chacun de trancher selon son abonnement et le nombre de lettres visees.
+LETTRE_RELECTURE = True
+
 # Duree de stage visee, en semaines. 8 en BUT2, 14 en BUT3.
 STAGE_DUREE_SEMAINES = 14
 

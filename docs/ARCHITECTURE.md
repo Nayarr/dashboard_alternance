@@ -76,7 +76,8 @@ flowchart TD
 | `filters.py` | Scoring, pourcentage d'adequation, porte technique, detection d'ecoles, presence d'un canal | Aucun acces base |
 | `sources/*.py` | Interrogation d'une API, normalisation vers le schema commun | Aucun scoring, aucune ecriture |
 | `sourcing.py` | Orchestration collecte, enrichissement, insertion, rescore | Aucune redaction |
-| `generer_lettres.py` | Appel de Claude Code headless, nettoyage typographique | Aucun envoi |
+| `generer_lettres.py` | Appel de Claude Code headless, relecture par les skills, nettoyage typographique | Aucun envoi |
+| `.claude/skills/` | Trois skills de redaction invoques a chaque lettre | Aucun effet hors redaction |
 | `generer.py` | Composition DOCX, conversion PDF via Word COM | Aucune redaction |
 | `postuler_lba.py` | Formulaire public LBA, sans compte | Aucune redaction |
 | `postuler_wttj.py` | Formulaire interne WTTJ, session requise | Aucune redaction |

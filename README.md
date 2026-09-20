@@ -61,7 +61,13 @@ dont dispose le redacteur : ce qui n'y figure pas ne sera pas ecrit, et c'est
 volontaire — une lettre qui invente un chiffre se disqualifie plus vite qu'une
 lettre sobre.
 
-**4. CV**
+**4. Skills de redaction**
+
+Rien a installer : les trois skills sont dans le depot, sous
+`.claude/skills/`. Claude Code les trouve tout seul des lors que les commandes
+sont lancees depuis la racine du projet. Ils sont decrits plus bas.
+
+**5. CV**
 
 Deposer le PDF dans `templates/cv/` (ou par glisser-deposer depuis la page
 Parametres). Son nom est conserve tel quel : il part en piece jointe chez le
@@ -94,8 +100,58 @@ python geocode.py "ton adresse"      # coordonnees du point de reference
 ```
 
 `reconnaissance.py` avant `generer_lettres.py` n'est pas un detail : une lettre
-coute environ 60 000 jetons, et certains formulaires n'ont aucun endroit ou la
-mettre. L'inspection le constate avant qu'on paie.
+coute au bas mot 70 000 jetons, et certains formulaires n'ont aucun endroit ou
+la mettre. L'inspection le constate avant qu'on paie.
+
+---
+
+## Relecture des lettres
+
+Trois skills vivent dans `.claude/skills/` et font partie de l'outil :
+
+| Skill | Quand | Ce qu'il apporte |
+|---|---|---|
+| `lettre-motivation` | avant la redaction | structure Vous/Moi/Nous, preuves chiffrees, ce qui fait rejeter une candidature |
+| `humanizer-fr` | apres | 31 tournures typiques d'un texte genere : connecteurs artificiels, adverbes en -ment, paires d'adjectifs, monotonie syntaxique |
+| `lettre-motivation-anti-ia` | en derniere passe | les signes propres aux lettres, distincts du style general |
+
+Le gain est visible. Sur une meme offre, sans relecture :
+
+> J'ai mene ce projet de la conception a la mise en production, en autonomie
+> complete, ce qui m'a appris a structurer un outil pour qu'il tienne dans un
+> usage reel, pas seulement en demonstration.
+
+Avec :
+
+> La double saisie qui ralentissait le traitement des dossiers a disparu.
+> J'etais le seul referent technique, de la conception a la mise en production.
+
+Il se paie, et lourdement. Mesure sur la meme offre, jetons totaux comptes par
+`--output-format json` :
+
+| | sans relecture | avec |
+|---|---|---|
+| tours de conversation | 1 | 10 |
+| jetons | 70 500 | 570 400 |
+| duree | 12 s | 54 s |
+| cout equivalent API | 0,12 USD | 0,32 USD |
+
+Huit fois plus de jetons pour un facteur 2,7 sur le cout : l'ecart vient des
+lectures de cache, facturees moins cher que des jetons neufs. Sur un
+abonnement, ce sont les jetons qui comptent, pas les dollars.
+
+La case **Relecture des lettres** de la page Parametres decide. En ligne de
+commande :
+
+```bash
+python generer_lettres.py --limite 5 --sans-relecture
+```
+
+Une precision qui a son importance : `--allowedTools ""` ne desactive pas les
+outils, c'est la liste de ceux qui n'ont pas besoin d'une autorisation. Le
+`Skill` y figure desormais, sans quoi toute invocation attendrait une
+approbation que personne ne peut donner en mode headless, et les skills
+resteraient inertes.
 
 ---
 
@@ -250,7 +306,7 @@ Application Flask locale, **sans authentification** : elle ecoute sur
 - **Vues de rejet** (`hors_cible`, `ecole`, `ecarte`, `sans_canal`) —
   consultables, avec un bouton Recuperer pour rattraper un faux positif.
 - **Parametres** — CV, jeton Claude, comptes de sites, profil, adresse,
-  mots-cles, ROME, exclusions, seuils.
+  relecture des lettres, mots-cles, ROME, exclusions, seuils.
 
 Toute decision prise dans l'interface est journalisee et passe en statut fige :
 `sourcing.py --rescore` ne l'ecrasera jamais.
@@ -268,6 +324,7 @@ entree supprimee depuis l'interface peut toujours etre retrouvee, et le bouton
 |---|---|
 | Profil, adresse postale, rayon | Identite, distances, remplissage des formulaires |
 | Alternance / stage | Change les requetes envoyees aux sources, le bareme et la lettre |
+| Relecture des lettres | Trois skills relisent chaque lettre : nettement mieux, 8x plus de jetons |
 | Duree de stage | 8 semaines en BUT2, 14 en BUT3 ; tolerance reglable |
 | Mots-cles techniques | ~85 termes ponderes, ajoutables et supprimables |
 | Codes ROME | Ce qui est interroge chez La Bonne Alternance |

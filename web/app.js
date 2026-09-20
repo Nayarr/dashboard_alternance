@@ -412,6 +412,21 @@ const CHAMPS_PROFIL = [
   ["duree_mois", "Durée cible (mois)"],
   ["rythme", "Rythme d'alternance"],
   ["poursuite_etudes", "Poursuite d'études"],
+  // Facultatifs : réclamés par certains formulaires, WTTJ en tête. Laissés
+  // vides, les champs correspondants ne sont simplement pas remplis.
+  ["titre", "Titre / accroche"],
+  ["linkedin", "Profil LinkedIn (URL)"],
+  ["liens", "Liens en pied de signature"],
+];
+
+/* Les cles correspondent a config.ADRESSE_POSTALE. Meme principe : une seule
+   source, pour qu'un champ affiche soit toujours renvoye au serveur. */
+const CHAMPS_ADRESSE = [
+  ["voie", "Numéro et voie"],
+  ["code_postal", "Code postal"],
+  ["commune", "Commune"],
+  ["region", "Département / région"],
+  ["pays", "Pays"],
 ];
 
 async function rendreComptes() {
@@ -459,7 +474,17 @@ function majNatures() {
   });
 }
 
+function rendreAdresse(p) {
+  $("#grille-adresse").innerHTML = CHAMPS_ADRESSE.map(([cle, libelle]) => {
+    const valeur = String(p.adresse_postale?.[cle] ?? "");
+    return `<div class="champ"><label>${libelle}</label>
+      <input type="text" data-adresse="${cle}"
+             value="${valeur.replace(/"/g, "&quot;")}"></div>`;
+  }).join("");
+}
+
 function rendreProfil(p) {
+  rendreAdresse(p);
   $("#grille-profil").innerHTML = CHAMPS_PROFIL.map(([cle, libelle]) => {
     const valeur = p.profil[cle] ?? "";
     const nombre = typeof valeur === "number";
@@ -554,6 +579,14 @@ function lireProfil() {
   return profil;
 }
 
+function lireAdresse() {
+  const adresse = {};
+  $("#grille-adresse").querySelectorAll("[data-adresse]").forEach((el) => {
+    adresse[el.dataset.adresse] = el.value.trim();
+  });
+  return adresse;
+}
+
 async function retablirDefaut(cle) {
   try {
     await api(`/api/parametres/defaut/${cle}`, { method: "POST" });
@@ -585,6 +618,7 @@ async function enregistrerParametres() {
     exclusions_perso: lignes("#termes"),
     exclusions_perso_souples: lignes("#termes-souples"),
     profil: lireProfil(),
+    adresse_postale: lireAdresse(),
     romes: lireEtiquettes("#romes"),
     mots_cles: lireMotsCles(),
     ecole_blocklist: lireEtiquettes("#blocklist"),

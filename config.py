@@ -13,9 +13,9 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 
 # --- Profil ---------------------------------------------------------------
 
-# Valeurs d'EXEMPLE. Les tiennes vont dans identite_locale.py, un fichier
-# exclu du git : voir identite_locale.exemple.py et le README. Ce qui est
-# ecrit ici sert de gabarit et de valeur de repli, rien de plus.
+# Valeurs d'EXEMPLE. Les tiennes se saisissent depuis la page Parametres, qui
+# les ecrit dans data/parametres.json, exclu du git. Ce qui suit n'est qu'un
+# gabarit et une valeur de repli : ce fichier est publie.
 PROFIL = {
     "nom": "Prenom Nom",
     "email": "prenom.nom@example.com",
@@ -513,30 +513,11 @@ SEUIL_DOUBLONS_EMPLOYEUR = 15
 # permet de supprimer une entree. Une cle absente de parametres.json signifie
 # "valeur par defaut", pas "liste vide".
 
-# --- Identite reelle, hors du depot ----------------------------------------
-#
-# identite_locale.py n'est pas versionne : il porte le nom, l'adresse et les
-# coordonnees, qui n'ont rien a faire dans un depot public. Son absence n'est
-# pas une erreur, l'outil tourne alors avec le profil d'exemple ci-dessus.
-#
-# L'import est place ICI, avant le gel de DEFAUTS : parametres.py reconstruit
-# PROFIL a partir de DEFAUTS["profil"] a chaque application de la surcouche.
-# Si l'identite arrivait apres, le premier enregistrement depuis l'interface
-# la remplacerait par le gabarit.
-try:
-    import identite_locale as _local  # noqa: E402
-except ImportError:
-    _local = None
-else:
-    PROFIL.update(getattr(_local, "PROFIL", {}))
-    ADRESSE_POSTALE.update(getattr(_local, "ADRESSE_POSTALE", {}))
-    ADRESSE_REFERENCE = getattr(_local, "ADRESSE_REFERENCE", ADRESSE_REFERENCE)
-    ORIGINE = getattr(_local, "ORIGINE", ORIGINE)
-
 import copy as _copy  # noqa: E402
 
 DEFAUTS = {
     "profil": _copy.deepcopy(PROFIL),
+    "adresse_postale": _copy.deepcopy(ADRESSE_POSTALE),
     "romes": list(ROMES),
     "mots_cles": dict(MOTS_CLES),
     "ecole_blocklist": list(ECOLE_BLOCKLIST),

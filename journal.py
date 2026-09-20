@@ -133,9 +133,15 @@ def expliquer(sortie, code=None):
     if exceptions:
         return exceptions[-1].strip()[:300]
 
+    # Ni cas connu ni exception : le script s'est arrete sans rien expliquer.
+    # C'est typiquement un processus tue - arret manuel, manque de memoire,
+    # fermeture de session. Rendre la derniere ligne telle quelle donnerait
+    # "OK  # 857 Essilor  deja_ecrite" comme motif d'echec, ce qui se lit
+    # exactement comme une reussite.
     lignes = [l.strip() for l in texte.splitlines() if l.strip()]
     if lignes:
-        return lignes[-1][:300]
+        return (f"Arret inattendu (code {code}), sans message d'erreur. "
+                f"Derniere ligne : {lignes[-1][:200]}")
 
     return f"Echec sans message (code de sortie {code})"
 

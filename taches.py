@@ -99,7 +99,10 @@ def _avancer(tache_id, progression=None, total=None, message=None, ligne=None):
         # diagnostiquer sans faire gonfler la base.
         actuel = (conn.execute("SELECT journal FROM taches WHERE id = ?",
                                (tache_id,)).fetchone()["journal"] or "")
-        lignes = (actuel + ligne + "\n").splitlines()[-200:]
+        # Le separateur manquait : `actuel + ligne` recollait chaque nouvelle
+        # ligne a la fin de la precedente, et le journal se lisait comme un
+        # seul pave. Le detail d'un echec y etait illisible.
+        lignes = ((actuel + "\n" if actuel else "") + ligne).splitlines()[-200:]
         champs.append("journal = ?")
         valeurs.append("\n".join(lignes))
     if champs:
@@ -175,9 +178,12 @@ def lancer(type_, parametres):
 
     try:
         if type_ == "collecte":
-            sources = parametres.get("sources") or ["lba", "wttj"]
+            # Sans --source, sourcing.py interroge ses cinq sources. La liste
+            # etait dupliquee ici, et reduite a deux : l'Apec, JobTeaser et le
+            # portail de l'emploi public n'etaient jamais collectes depuis
+            # l'interface, qui est pourtant le parcours recommande.
             commande = ["sourcing.py"]
-            for s in sources:
+            for s in (parametres.get("sources") or []):
                 commande += ["--source", s]
             total = 0
             marqueur = lambda l: l.strip().startswith("ROME ") or "':" in l

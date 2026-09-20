@@ -16,7 +16,11 @@ const $ = (sel) => document.querySelector(sel);
 /* Vues ou l'offre a ete ecartee : on y propose de la ramener a la main. La
    recuperation pose un verrou en base, sinon le prochain rescore la
    reecarterait par le filtre meme qui l'avait sortie. */
-const REBUTS = ["ecarte", "hors_cible", "sans_canal", "ecole"];
+// Vues depuis lesquelles une offre peut revenir dans le vivier. ats_externe
+// en fait partie : la redirection est constatee sur le formulaire, mais la
+// detection peut se tromper - un bouton renomme, une page lente - et sans
+// bouton la seule sortie etait de retirer l'offre definitivement.
+const REBUTS = ["ecarte", "hors_cible", "sans_canal", "ecole", "ats_externe"];
 
 /* Suites possibles depuis chaque etape du pipeline.
    Sans elles, le suivi s'arretait a l'envoi : les vues Entretien, Refus et
@@ -86,11 +90,17 @@ function monogramme(nom) {
 }
 
 function gabaritLogo(offre) {
-  if (offre.logo_url) {
-    return `<div class="logo"><img src="${offre.logo_url}" alt=""
-              onerror="this.parentElement.innerHTML='';this.parentElement.style.background='${monogramme(offre.entreprise).fond}';this.parentElement.textContent='${monogramme(offre.entreprise).initiales}'"></div>`;
-  }
   const m = monogramme(offre.entreprise);
+  if (offre.logo_url) {
+    // Le parent est garde dans une variable AVANT de le vider. L'ancienne
+    // version faisait `this.parentElement.innerHTML=''` puis relisait
+    // `this.parentElement` : l'image venait d'etre retiree du document, donc
+    // `this` n'avait plus de parent et la suite levait sur null. Un logo
+    // injoignable suffisait, et il y en a des centaines : la console en
+    // recevait autant, et le monogramme de repli ne s'affichait jamais.
+    return `<div class="logo"><img src="${offre.logo_url}" alt=""
+              onerror="var p=this.parentElement;p.innerHTML='';p.style.background='${m.fond}';p.style.borderColor='transparent';p.textContent='${m.initiales}'"></div>`;
+  }
   return `<div class="logo" style="background:${m.fond};border-color:transparent">${m.initiales}</div>`;
 }
 
@@ -695,10 +705,32 @@ function lireAdresse() {
   return adresse;
 }
 
+/* Ce que chaque remise a zero detruit reellement. Le bloc Profil etait le
+   plus dangereux : un clic remplacait nom, email et telephone par les valeurs
+   d'exemple de config.py, sans un mot, et l'en-tete continuait d'afficher
+   l'ancien nom jusqu'au rechargement suivant. */
+const AVERTISSEMENTS_DEFAUT = {
+  profil: "Remettre le profil aux valeurs d'exemple ?\n\n"
+        + "Ton nom, ton email et ton téléphone seront remplacés par ceux du "
+        + "gabarit. Il faudra les ressaisir.",
+  adresse_postale: "Remettre l'adresse postale aux valeurs d'exemple ?\n\n"
+        + "Ton adresse réelle sera effacée.",
+  romes: "Rétablir les codes ROME par défaut ? Tes ajouts seront perdus.",
+  mots_cles: "Rétablir les 85 mots-clés par défaut ? Tes ajouts et tes poids "
+           + "personnalisés seront perdus.",
+  ecole_blocklist: "Rétablir la blocklist par défaut ? Tes ajouts seront perdus.",
+};
+
 async function retablirDefaut(cle) {
+  if (!confirm(AVERTISSEMENTS_DEFAUT[cle] || "Rétablir les valeurs par défaut ?")) {
+    return;
+  }
   try {
-    await api(`/api/parametres/defaut/${cle}`, { method: "POST" });
+    const r = await api(`/api/parametres/defaut/${cle}`, { method: "POST" });
     await chargerParametres();
+    // L'en-tete est rendu au demarrage : sans cette ligne il gardait l'ancien
+    // nom, et le profil paraissait intact alors qu'il venait d'etre efface.
+    if (r.profil) $("#nom-profil").textContent = r.profil.nom || "Alternance";
     toast("Valeurs par défaut rétablies");
   } catch (e) {
     toast(e.message, true);

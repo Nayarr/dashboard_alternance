@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import db
+from alternance import db
 
 
 class TestAPI(unittest.TestCase):
@@ -21,10 +21,10 @@ class TestAPI(unittest.TestCase):
         db.DB_PATH = cls.dossier / "test.db"
         db._schema_verifie = False
 
-        import dashboard
-        import parametres
-        cls.dashboard = dashboard
-        cls.client = dashboard.app.test_client()
+        from alternance.interface import serveur
+        from alternance import parametres
+        cls.serveur = serveur
+        cls.client = serveur.app.test_client()
 
         # La surcouche est redirigee elle aussi : un test qui enregistre des
         # reglages ne doit pas ecraser ceux de la personne qui lance la suite.
@@ -75,7 +75,7 @@ class TestAPI(unittest.TestCase):
     def test_toutes_les_vues_repondent(self):
         """Une vue declaree dans la navigation et refusee par l'API donnerait
         un onglet mort."""
-        for vue in self.dashboard.CLES_VISIBLES:
+        for vue in self.serveur.CLES_VISIBLES:
             with self.subTest(vue=vue):
                 self.assertEqual(
                     self.client.get(f"/api/offres?statut={vue}").status_code, 200)

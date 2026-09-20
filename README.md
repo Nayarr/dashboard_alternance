@@ -78,7 +78,8 @@ recruteur.
 ## Utilisation
 
 ```bash
-python dashboard.py                  # interface sur http://127.0.0.1:5000
+python cli.py                        # la liste des commandes
+python cli.py interface              # tableau de bord sur http://127.0.0.1:5000
 ```
 
 Tout se pilote de la : collecte, inspection des formulaires, redaction,
@@ -90,22 +91,24 @@ Les memes operations en ligne de commande, ou le defaut est l'inverse : rien
 ne part sans `--confirmer`.
 
 ```bash
-python sourcing.py                   # collecte les cinq sources
-python sourcing.py --source lba      # lba | wttj | apec | jobteaser | service_public
-python sourcing.py --rescore         # recalcule scores et filtres sans recollecter
+python cli.py collecte               # collecte les cinq sources
+python cli.py collecte --source lba  # lba | wttj | apec | jobteaser | service_public
+python cli.py collecte --rescore     # recalcule scores et filtres sans recollecter
 
-python reconnaissance.py             # releve ce que chaque formulaire accepte
-python generer_lettres.py --limite 5 # redige les lettres des meilleurs scores
+python cli.py reconnaissance         # releve ce que chaque formulaire accepte
+python cli.py lettres --limite 5     # redige les lettres des meilleurs scores
 
-python postuler_lba.py --offre 59    # dry-run : remplit sans envoyer
-python postuler_lba.py --offre 59 --confirmer   # envoie reellement
+python cli.py postuler-lba --offre 59               # dry-run : remplit sans envoyer
+python cli.py postuler-lba --offre 59 --confirmer   # envoie reellement
 
-python connecter_compte.py wttj      # ouvre un navigateur pour se connecter
-python inspect_db.py resume          # repartition de la base
-python geocode.py "ton adresse"      # coordonnees du point de reference
+python cli.py connecter wttj         # ouvre un navigateur pour se connecter
+python cli.py base resume            # repartition de la base
+python cli.py geocode "ton adresse"  # coordonnees du point de reference
 ```
 
-`reconnaissance.py` avant `generer_lettres.py` n'est pas un detail : une lettre
+Les options n'ont pas change : `cli.py <commande> --help` les liste.
+
+`cli.py reconnaissance` avant `cli.py lettres` n'est pas un detail : une lettre
 coute au bas mot 70 000 jetons, et certains formulaires n'ont aucun endroit ou
 la mettre. L'inspection le constate avant qu'on paie.
 
@@ -150,7 +153,7 @@ La case **Relecture des lettres** de la page Parametres decide. En ligne de
 commande :
 
 ```bash
-python generer_lettres.py --limite 5 --sans-relecture
+python cli.py lettres --limite 5 --sans-relecture
 ```
 
 Une precision qui a son importance : `--allowedTools ""` ne desactive pas les
@@ -170,9 +173,9 @@ formulaire, et le depot y est automatise.
 Deux canaux. Le premier renseigne dans `.env` est utilise automatiquement.
 
 ```bash
-python envoyer.py --offre 925               # apercu, n'envoie rien
-python envoyer.py --offre 925 --confirmer   # envoie par le canal disponible
-python envoyer.py --offre 925 --canal gmail --confirmer
+python cli.py envoyer --offre 925               # apercu, n'envoie rien
+python cli.py envoyer --offre 925 --confirmer   # envoie par le canal disponible
+python cli.py envoyer --offre 925 --canal gmail --confirmer
 ```
 
 ### Canal rapide : mot de passe d'application Gmail
@@ -285,8 +288,8 @@ sur [myapps.microsoft.com](https://myapps.microsoft.com).
 Equivalent en ligne de commande, si l'interface n'est pas lancee :
 
 ```bash
-python graph_mail.py --connexion   # se connecter
-python graph_mail.py               # quel compte est connecte ?
+python cli.py graph --connexion    # se connecter
+python cli.py graph                # quel compte est connecte ?
 ```
 
 **En cas d'erreur**
@@ -336,7 +339,7 @@ interface qui n'attend que du JSON. Le fichier bascule en `app.log.1` au-dela
 de 2 Mo, une seule generation conservee.
 
 Toute decision prise dans l'interface est journalisee et passe en statut fige :
-`sourcing.py --rescore` ne l'ecrasera jamais.
+`cli.py collecte --rescore` ne l'ecrasera jamais.
 
 Le pipeline se pilote depuis le panneau de detail d'une offre :
 
@@ -383,13 +386,13 @@ Un simulateur montre ce qu'un filtre ecarterait **avant** de l'appliquer.
 
 ## Sources
 
-**La Bonne Alternance** (`sources/lba.py`) — `GET /api/job/v1/search`, cle
+**La Bonne Alternance** (`alternance/sources/lba.py`) — `GET /api/job/v1/search`, cle
 Bearer gratuite. Deux gisements : `jobs`, les offres publiees (qui agregent
 France Travail, PASS, Veritone, Meteojob, Maazi), et `recruiters`, environ 150
 entreprises par code ROME susceptibles de recruter sans offre publiee — c'est
 la donnee de La Bonne Boite, exploitee en candidature spontanee.
 
-**Welcome to the Jungle** (`sources/wttj.py`) — le site est une SPA, `/fr/jobs`
+**Welcome to the Jungle** (`alternance/sources/wttj.py`) — le site est une SPA, `/fr/jobs`
 renvoie 550 Ko de HTML sans aucun `JobPosting`. Son propre front interroge un
 index Algolia avec une cle de recherche publique embarquee dans le bundle JS :
 on utilise le meme point d'entree, ce qui donne du JSON structure et une charge
@@ -397,21 +400,21 @@ tres inferieure a un rendu de page complet. `contract_type` est en MAJUSCULES
 (`APPRENTICESHIP`, `INTERNSHIP`), `_geoloc` est un tableau, et l'index renvoie
 des doublons — dedoublonnage sur `objectID`.
 
-**Apec** (`sources/apec.py`) — `POST /cms/webservices/rechercheOffre`, sans
+**Apec** (`alternance/sources/apec.py`) — `POST /cms/webservices/rechercheOffre`, sans
 authentification. Les descriptions completes ne sont **pas** recuperees : le
 point d'entree de detail est protege par DataDome et renvoie un captcha. On
 travaille sur les resumes, ce qui explique le plafond technique proportionnel
 a la longueur du texte (voir Scoring).
 
-**JobTeaser** (`sources/jobteaser.py`) — pages de recherche par chemin,
+**JobTeaser** (`alternance/sources/jobteaser.py`) — pages de recherche par chemin,
 autorisees par leur `robots.txt`. Les pages de detail sont derriere Cloudflare
 et ne sont pas sollicitees.
 
-**Choisir le service public** (`sources/service_public.py`) — WordPress rendu
+**Choisir le service public** (`alternance/sources/service_public.py`) — WordPress rendu
 cote serveur. Pas de filtre de contrat : la nature est deduite du texte. Les
 candidatures se font par email, l'adresse figure dans l'annonce.
 
-**France Travail** (`sources/france_travail.py`) — code present, **desactive**.
+**France Travail** (`alternance/sources/france_travail.py`) — code present, **desactive**.
 L'API fonctionne (OAuth client_credentials, `natureContrat=E2`, et il faut
 geocoder le libelle de lieu qui n'est pas fourni en coordonnees), mais
 automatiser le depot de candidature sur leur portail expose a un signalement.
@@ -476,6 +479,32 @@ Le matching se fait sur mot entier, sans quoi `studi` capture `LEIKIR STUDIO`.
 Les annonces detectees passent au statut `ecole` et **ne sont pas supprimees**.
 
 ---
+
+## Organisation du code
+
+```
+cli.py                  point d'entree unique
+alternance/
+  config.py             profil d'exemple, baremes, listes, valeurs par defaut
+  parametres.py         surcouche data/parametres.json posee sur config
+  texte.py              normalisation partagee
+  chemins.py            ou vivent les pieces d'une candidature
+  journal.py            data/logs/app.log et traduction des echecs
+  db.py                 schema, migrations, connexion
+  filtres.py            scoring, porte technique, detection d'ecoles
+  geocode.py            adresse vers coordonnees
+  collecte.py           orchestration : collecte, enrichissement, rescore
+  sources/              un module par site interroge
+  redaction/            lettres.py (Claude headless), pieces.py (DOCX puis PDF)
+  candidature/          lba.py, wttj.py, reconnaissance.py, session.py
+  courrier/             envoi.py, graph.py
+  interface/            serveur.py, taches.py, statique/
+outils/                 diagnostics et garde-fous, hors produit
+tests/                  suite unittest
+```
+
+Une dependance ne remonte jamais : `sources/` ignore `collecte`, qui ignore
+`interface/`. Le socle - config, db, filtres - ne connait personne.
 
 ## Schema
 

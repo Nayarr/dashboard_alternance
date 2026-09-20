@@ -7,8 +7,8 @@ code choisie au hasard : c'est ce qui rend une regression visible.
 
 import unittest
 
-import filters
-import texte
+from alternance import filtres as filters
+from alternance import texte
 
 
 class TestCorrespondanceMotEntier(unittest.TestCase):

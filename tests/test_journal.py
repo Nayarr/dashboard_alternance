@@ -8,7 +8,7 @@ que les pannes deja rencontrees sont reconnues, et qu'aucune ne retombe sur
 
 import unittest
 
-import journal
+from alternance import journal
 
 
 class TestDiagnostics(unittest.TestCase):

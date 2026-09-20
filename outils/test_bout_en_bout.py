@@ -24,10 +24,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-import chemins  # noqa: E402
-import config  # noqa: E402
-import db  # noqa: E402
-import filters  # noqa: E402
+from alternance import chemins  # noqa: E402
+from alternance import config  # noqa: E402
+from alternance import db  # noqa: E402
+from alternance import filtres as filters  # noqa: E402
 
 # Champs qu'une offre doit porter pour traverser le pipeline sans surprise.
 #
@@ -81,7 +81,7 @@ def controle_offres(offres, source):
 
 
 def etage_collecte():
-    from sources import apec, jobteaser, lba, service_public, wttj
+    from alternance.sources import apec, jobteaser, lba, service_public, wttj
 
     verifie("collecte", "wttj", lambda: controle_offres(wttj.collecte(), "wttj"))
     verifie("collecte", "apec", lambda: controle_offres(apec.collecter(), "apec"))
@@ -131,7 +131,7 @@ def etage_scoring(conn):
 # --------------------------------------------------------- 3. RECONNAISSANCE
 
 def etage_reconnaissance(conn):
-    import reconnaissance as reco
+    from alternance.candidature import reconnaissance as reco
     from playwright.sync_api import sync_playwright
 
     for source in reco.SOURCES:
@@ -173,7 +173,7 @@ def etage_depot(conn):
     def lba():
         import subprocess
         r = subprocess.run(
-            [sys.executable, "postuler_lba.py", "--limite", "1", "--headless"],
+            [sys.executable, "cli.py", "postuler-lba", "--limite", "1", "--headless"],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             cwd=str(config.BASE_DIR), timeout=300)
         if "reellement envoyee" not in r.stdout:
@@ -197,7 +197,7 @@ def etage_depot(conn):
 
     # --- Email : canal du service public ------------------------------------
     def courriel():
-        import envoyer
+        from alternance.courrier import envoi as envoyer
         ligne = conn.execute(
             "SELECT * FROM offres WHERE contact_email IS NOT NULL "
             "AND id IN (SELECT id FROM offres) ORDER BY matching DESC").fetchall()
@@ -223,7 +223,7 @@ def etage_depot(conn):
 # -------------------------------------------------------------- 5. INTERFACE
 
 def etage_interface():
-    import dashboard
+    from alternance.interface import serveur as dashboard
     c = dashboard.app.test_client()
 
     def lectures():

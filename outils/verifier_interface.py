@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Coherence entre app.js, index.html et les routes de dashboard.py.
+"""Coherence entre app.js, index.html et les routes du serveur.
 
     python outils/verifier_interface.py
 
@@ -21,9 +21,10 @@ import sys
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
-JS = (BASE / "web" / "app.js").read_text(encoding="utf-8")
-HTML = (BASE / "web" / "index.html").read_text(encoding="utf-8")
-PY = (BASE / "dashboard.py").read_text(encoding="utf-8")
+INTERFACE = BASE / "alternance" / "interface"
+JS = (INTERFACE / "statique" / "app.js").read_text(encoding="utf-8")
+HTML = (INTERFACE / "statique" / "index.html").read_text(encoding="utf-8")
+PY = (INTERFACE / "serveur.py").read_text(encoding="utf-8")
 
 
 def identifiants_disponibles():
@@ -82,7 +83,7 @@ def main():
     #
     # La liste est lue dans le source et non importee : importer le serveur
     # tirerait Flask, et ce controle doit rester purement statique. Il tourne
-    # en CI dans un job sans dependances installees, exprès, pour qu'une
+    # en CI dans un job sans dependances installees, expres, pour qu'une
     # incoherence d'interface se voie en quelques secondes.
     bloc_vues = re.search(r"^VUES = \[(.*?)^\]", PY, re.S | re.M)
     if not bloc_vues:

@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import db  # noqa: E402
+from alternance import db  # noqa: E402
 
 conn = db.init()
 avant = conn.execute("SELECT COUNT(*) n FROM offres").fetchone()["n"]

@@ -14,8 +14,12 @@ from alternance.redaction import lettres
 
 class TestAppelClaude(unittest.TestCase):
     def setUp(self):
+        # Volontairement sans la forme d'un vrai jeton : le garde-fou du
+        # depot refuse toute chaine en sk-ant-..., et il a raison — rien ne
+        # distingue un faux d'un vrai dans un fichier versionne. Le code
+        # teste ne verifie que la presence de la variable.
         self.env = mock.patch.dict(
-            "os.environ", {"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-factice"})
+            "os.environ", {"CLAUDE_CODE_OAUTH_TOKEN": "jeton-de-test"})
         self.env.start()
 
     def tearDown(self):

@@ -27,6 +27,7 @@ from datetime import datetime
 from pathlib import Path
 
 import db
+import journal
 
 BASE = Path(__file__).parent
 
@@ -131,21 +132,35 @@ def _executer(tache_id, commande, total, extraire_progression=None):
             env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
         )
         fait = 0
+        # La sortie complete sert au diagnostic : le journal en base est borne
+        # a 200 lignes, et l'erreur utile est souvent plus haut que ca.
+        sortie = []
         for ligne in processus.stdout:
             ligne = ligne.rstrip()
             if not ligne:
                 continue
+            sortie.append(ligne)
             if extraire_progression and extraire_progression(ligne):
                 fait += 1
             _avancer(tache_id, progression=fait, message=ligne[:160], ligne=ligne)
 
         code = processus.wait()
+        texte = "\n".join(sortie)
         if code == 0:
             _terminer(tache_id, "terminee", f"termine ({fait}/{total})")
         else:
-            _terminer(tache_id, "echouee", f"code de sortie {code}")
+            # "code de sortie 1" ne dit rien a personne. On cherche dans la
+            # sortie de quoi repondre a "et maintenant ?", et on garde la
+            # trace complete dans data/logs/app.log.
+            raison = journal.expliquer(texte, code)
+            journal.enregistrer(
+                f"tache#{tache_id} {' '.join(commande)}",
+                f"echec (code {code}) : {raison}", texte)
+            _terminer(tache_id, "echouee", raison)
     except Exception as e:
-        _terminer(tache_id, "echouee", f"{type(e).__name__}: {e}")
+        raison = journal.exception(f"tache#{tache_id}", e,
+                                   contexte=" ".join(commande))
+        _terminer(tache_id, "echouee", raison)
     finally:
         if _verrou.locked():
             _verrou.release()

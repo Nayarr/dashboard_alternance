@@ -319,6 +319,22 @@ Application Flask locale, **sans authentification** : elle ecoute sur
 - **Parametres** — CV, jeton Claude, comptes de sites, profil, adresse,
   relecture des lettres, mots-cles, ROME, exclusions, seuils.
 
+### Quand une tache echoue
+
+Le panneau de progression reste ouvert et porte trois choses : une phrase qui
+dit quoi faire, la sortie complete du script, et le journal de l'application.
+
+`journal.py` traduit les echecs courants avant de les afficher — jeton Claude
+absent, dependance manquante, navigateur Playwright non installe, session de
+site expiree, base verrouillee, reseau injoignable, source qui nous limite.
+A defaut de cas connu, c'est la derniere exception, puis la derniere ligne
+utile. « Code de sortie 1 » n'apparait que si le script n'a vraiment rien dit.
+
+Tout part dans `data/logs/app.log` avec la trace complete, y compris les
+erreurs du serveur web, qui ne renvoie plus jamais de page HTML a une
+interface qui n'attend que du JSON. Le fichier bascule en `app.log.1` au-dela
+de 2 Mo, une seule generation conservee.
+
 Toute decision prise dans l'interface est journalisee et passe en statut fige :
 `sourcing.py --rescore` ne l'ecrasera jamais.
 

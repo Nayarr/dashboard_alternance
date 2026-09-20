@@ -726,8 +726,11 @@ async function enregistrerParametres() {
     exclusions,
     exclusions_perso: lignes("#termes"),
     exclusions_perso_souples: lignes("#termes-souples"),
-    profil: lireProfil(),
-    adresse_postale: lireAdresse(),
+    // Omis plutot qu'envoyes vides : si la page n'a pas fini de se rendre, la
+    // grille est vide, et un profil vide enregistre ecraserait l'identite par
+    // les valeurs d'exemple de config.py.
+    ...(Object.keys(lireProfil()).length ? { profil: lireProfil() } : {}),
+    ...(Object.keys(lireAdresse()).length ? { adresse_postale: lireAdresse() } : {}),
     romes: lireEtiquettes("#romes"),
     mots_cles: lireMotsCles(),
     ecole_blocklist: lireEtiquettes("#blocklist"),
@@ -741,6 +744,10 @@ async function enregistrerParametres() {
     });
     $("#adresse").value = r.adresse;
     $("#rayon").value = r.rayon_km;
+    // Le nom de l'en-tete n'etait lu qu'au demarrage : apres avoir corrige
+    // son profil, on continuait de voir l'ancien - "Prenom Nom" tant que rien
+    // n'avait ete saisi - jusqu'au prochain rechargement de la page.
+    $("#nom-profil").textContent = r.profil.nom || "Alternance";
     $("#sous-titre").textContent = `seuil d'adéquation ${r.seuil_matching}%`;
     $("#etat-parametres").textContent =
       "Enregistré. Recalculez les scores pour l'appliquer aux offres déjà collectées.";
@@ -834,6 +841,41 @@ const TITRES_TACHE = {
   reconnaissance: "Inspection des formulaires",
 };
 
+/* Un echec affichait « code de sortie 1 » et disparaissait au bout de six
+   secondes. Trois manques : la raison, le detail, et le temps de les lire.
+   Le panneau reste ouvert, porte la phrase produite par journal.expliquer(),
+   et deux boutons donnent acces a la sortie complete du script puis au
+   journal de l'application. */
+function afficherEchec(t) {
+  const bloc = $("#prog-echec");
+  if (!bloc) return;
+  if (!t || t.statut !== "echouee") {
+    bloc.hidden = true;
+    $("#prog-trace").hidden = true;
+    return;
+  }
+
+  bloc.hidden = false;
+  $("#prog-raison").textContent = t.message || "Échec sans message";
+  $("#btn-detail-tache").onclick = () => basculerTrace(
+    `/api/tache/${t.id}/journal`, (d) => d.journal || "(aucune sortie)");
+  $("#btn-journal").onclick = () => basculerTrace(
+    "/api/journal", (d) => d.contenu || "(journal vide)");
+}
+
+async function basculerTrace(chemin, extraire) {
+  const zone = $("#prog-trace");
+  if (!zone.hidden) { zone.hidden = true; return; }
+  zone.textContent = "chargement…";
+  zone.hidden = false;
+  try {
+    zone.textContent = extraire(await api(chemin));
+    zone.scrollTop = zone.scrollHeight;   // l'erreur est en bas
+  } catch (e) {
+    zone.textContent = "Lecture impossible : " + e.message;
+  }
+}
+
 async function lancerTache(type, extra = {}) {
   try {
     await api("/api/tache", {
@@ -874,7 +916,8 @@ async function sonder() {
   const part = t.total ? Math.min(100, 100 * t.progression / t.total)
                        : (t.statut === "en_cours" ? 35 : 100);
   $("#prog-barre").style.width = part + "%";
-  $("#prog-ligne").textContent = t.message || "";
+  $("#prog-ligne").textContent = t.statut === "echouee" ? "" : (t.message || "");
+  afficherEchec(t);
 
   // Le code d'appareil apparait au cours de la tache, pas a son lancement :
   // Microsoft ne le fournit qu'apres l'ouverture du flux.
@@ -899,7 +942,11 @@ async function sonder() {
     toast(t.statut === "terminee"
       ? `${TITRES_TACHE[t.type] || t.type} : terminé`
       : `Échec : ${t.message}`, t.statut !== "terminee");
-    setTimeout(() => { panneau.hidden = true; }, 6000);
+    // Un echec ne se referme pas tout seul : il y a quelque chose a lire, et
+    // six secondes ne suffisent pas pour ouvrir le detail.
+    if (t.statut === "terminee") {
+      setTimeout(() => { panneau.hidden = true; }, 6000);
+    }
   } else {
     majBoutons(true);
   }

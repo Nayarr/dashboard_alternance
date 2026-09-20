@@ -80,9 +80,17 @@ def main():
     # Les statuts cites par le JS - vues de rebut, suites du pipeline -
     # doivent exister cote serveur. Une faute de frappe dans REBUTS retire
     # silencieusement un bouton, sans erreur nulle part.
-    sys.path.insert(0, str(BASE))
-    from alternance.interface import serveur
-    connus = set(serveur.CLES_VISIBLES)
+    #
+    # La liste est lue dans le source et non importee : importer le serveur
+    # tirerait Flask, et ce controle doit rester purement statique. Il tourne
+    # en CI dans un job sans dependances installees, expres, pour qu'une
+    # incoherence d'interface se voie en quelques secondes.
+    bloc_vues = re.search(r"^VUES = \[(.*?)^\]", PY, re.S | re.M)
+    if not bloc_vues:
+        problemes.append("liste VUES introuvable dans le serveur")
+        connus = set()
+    else:
+        connus = set(re.findall(r'"cle":\s*"([a-z_]+)"', bloc_vues.group(1)))
 
     bloc_rebuts = re.search(r"const REBUTS = \[([^\]]*)\]", JS)
     cites = set(re.findall(r'"([a-z_]+)"', bloc_rebuts.group(1))) if bloc_rebuts else set()

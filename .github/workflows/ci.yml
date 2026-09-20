@@ -1,0 +1,119 @@
+name: CI
+
+# Sur chaque proposition de modification et sur main. Pas de planification :
+# le depot ne se degrade pas tout seul, seuls les changements le font.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Une seule execution par branche : pousser trois fois de suite ne doit pas
+# faire tourner trois fois la meme chose.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Passe en premier et sans dependances : un CV ou un jeton pousse par erreur
+  # ne se retire pas d'un historique public, il se revoque. Autant le savoir
+  # avant d'attendre l'installation des paquets.
+  depot:
+    name: Rien de personnel dans le depot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python outils/verifier_depot.py
+
+  # Ne concerne que les propositions de modification : rien a valider sur un
+  # push direct vers main.
+  description:
+    name: Description conforme au gabarit
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verifier la description
+        env:
+          # Par une variable et non par une interpolation directe dans le
+          # script : une description contenant des guillemets ou un $(...)
+          # serait sinon interpretee par le shell.
+          CORPS: ${{ github.event.pull_request.body }}
+        run: printf '%s' "$CORPS" | python outils/verifier_pr.py
+
+  tests:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    needs: depot
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows parce que c'est la plateforme de developpement et la seule
+        # ou generer.py fonctionne ; Linux parce que c'est ce qu'auront ceux
+        # qui clonent. 3.11 est le plancher reellement supporte.
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Installer les dependances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Playwright n'est pas installe : aucun test ne pilote de navigateur.
+      # Telecharger Chromium ajouterait deux minutes pour rien.
+
+      - name: Compilation de tous les modules
+        run: python -m compileall -q .
+
+      - name: Suite de tests
+        run: python -m unittest discover -s tests -t . -v
+
+  interface:
+    name: Syntaxe et coherence de l'interface
+    needs: depot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Une chaine coupee par une fin de ligne a deja rendu app.js invalide
+      # dans son entier : la page se chargeait, mais aucun bouton ne
+      # fonctionnait, et rien ne le signalait.
+      - name: app.js est-il analysable
+        run: node --check web/app.js
+
+      - name: Les identifiants cites existent-ils dans le HTML
+        run: python outils/verifier_interface.py
+
+  qualite:
+    name: Style Python
+    needs: depot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install ruff
+      # Non bloquant pour l'instant : le code precede la regle, et faire
+      # echouer la CI sur du style empecherait de livrer des corrections.
+      - run: ruff check . --output-format=github
+        continue-on-error: true

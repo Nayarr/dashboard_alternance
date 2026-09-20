@@ -393,6 +393,7 @@ async function chargerParametres() {
     .forEach((s) => { $(s).value = ""; });
 
   rendreComptes();
+  rendreOutlook();
   rendreProfil(p);
   rendreRomes(p);
   rendreMotsCles(p);
@@ -431,6 +432,73 @@ const CHAMPS_ADRESSE = [
   ["region", "Département / région"],
   ["pays", "Pays"],
 ];
+
+async function rendreOutlook() {
+  const o = await api("/api/integrations/outlook");
+  const cible = $("#integration-outlook");
+
+  // Sans application declaree cote Entra, le bouton ne menerait qu'a une
+  // erreur d'authentification : autant dire ce qui manque.
+  if (!o.configure) {
+    cible.innerHTML = `
+      <div class="compte-site">
+        <div class="corps">
+          <div class="titre">Boîte universitaire</div>
+          <div class="role">GRAPH_CLIENT_ID et GRAPH_TENANT_ID absents du .env —
+            voir le README, section « Envoyer par email »</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  cible.innerHTML = `
+    <div class="compte-site${o.connecte ? " ok" : ""}">
+      <div class="corps">
+        <div class="titre">Boîte universitaire</div>
+        <div class="role">autorisation d'envoi, par code d'appareil</div>
+      </div>
+      <div class="etat-compte">${o.connecte
+        ? `${o.compte} · ${o.age_jours} j`
+        : "non connecté"}</div>
+      <button class="bouton" id="btn-outlook">${
+        o.connecte ? "Reconnecter" : "Connecter"}</button>
+      ${o.connecte
+        ? `<button class="bouton retrait" id="btn-outlook-oublier">Oublier</button>`
+        : ""}
+    </div>`;
+
+  $("#btn-outlook").onclick = () => {
+    toast("Un code va s'afficher, à saisir sur la page Microsoft", false);
+    lancerTache("connexion_outlook", {});
+  };
+
+  const retrait = $("#btn-outlook-oublier");
+  if (retrait) {
+    retrait.onclick = async () => {
+      if (!confirm("Oublier le compte sur cette machine ?\n\n"
+                 + "Le jeton local est effacé. L'autorisation elle-même se "
+                 + "retire sur myapps.microsoft.com.")) return;
+      await api("/api/integrations/outlook", { method: "DELETE" });
+      toast("Jeton local effacé");
+      afficherCodeAppareil(null);
+      rendreOutlook();
+    };
+  }
+}
+
+/* Le code d'appareil ne vit que le temps de la connexion : il est extrait du
+   journal de la tache, ou graph_mail.py l'ecrit sur une ligne dediee. Analyser
+   le message destine a l'humain serait fragile, son libelle dependant du
+   tenant et de la langue. */
+function afficherCodeAppareil(journal) {
+  const panneau = $("#code-appareil");
+  if (!panneau) return;
+  const trouve = journal && journal.match(/^# DEVICE_CODE (\S+) (\S+)/m);
+  if (!trouve) { panneau.hidden = true; return; }
+  $("#code-valeur").textContent = trouve[1];
+  $("#code-lien").href = trouve[2];
+  panneau.hidden = false;
+}
 
 async function rendreComptes() {
   const comptes = await api("/api/comptes");
@@ -724,6 +792,7 @@ const TITRES_TACHE = {
   lettres: "Génération des lettres",
   candidatures: "Dépôt des candidatures",
   connexion: "Connexion à un site",
+  connexion_outlook: "Connexion de la boîte universitaire",
   rescore: "Recalcul des scores",
   reconnaissance: "Inspection des formulaires",
 };
@@ -770,6 +839,12 @@ async function sonder() {
   $("#prog-barre").style.width = part + "%";
   $("#prog-ligne").textContent = t.message || "";
 
+  // Le code d'appareil apparait au cours de la tache, pas a son lancement :
+  // Microsoft ne le fournit qu'apres l'ouverture du flux.
+  if (t.type === "connexion_outlook" && t.statut === "en_cours") {
+    afficherCodeAppareil(t.journal);
+  }
+
   // Comptes de la navigation, mis a jour en direct pendant la tache
   etat.vues = etat.vues.map((v) => ({ ...v, compte: r.compte[v.cle] ?? v.compte }));
   rendreNav();
@@ -780,6 +855,10 @@ async function sonder() {
     majBoutons(false);
     chargerOffres();
     if (t.type === "connexion" && !$("#page-parametres").hidden) rendreComptes();
+    if (t.type === "connexion_outlook" && !$("#page-parametres").hidden) {
+      afficherCodeAppareil(null);
+      rendreOutlook();
+    }
     toast(t.statut === "terminee"
       ? `${TITRES_TACHE[t.type] || t.type} : terminé`
       : `Échec : ${t.message}`, t.statut !== "terminee");
@@ -873,17 +952,31 @@ async function demarrer() {
   $("#btn-reconnaissance").onclick = () => lancerTache("reconnaissance");
   $("#btn-lettres").onclick = () => {
     const inconnues = etat.vues.find((v) => v.cle === "a_traiter");
-    if (!confirm("Générer les lettres ?
-
-Chaque lettre coûte environ 65 000 "
-               + "jetons. Lance d'abord l'inspection des formulaires pour ne "
+    if (!confirm("Générer les lettres ?\n\nChaque lettre coûte environ 70 000 "
+               + "jetons, et jusqu'à 570 000 si la relecture est active. "
+               + "Lance d'abord l'inspection des formulaires pour ne "
                + "pas en écrire pour des offres qui n'en acceptent pas.")) return;
     lancerTache("lettres", { limite: 10 });
   };
+  /* Le bouton envoie pour de vrai. La confirmation reste, mais elle est
+     passee de "rien ne sera envoye" a un avertissement : c'est le dernier
+     point d'arret avant que des candidatures partent chez des employeurs,
+     et une candidature envoyee ne se rattrape pas. Le drapeau --confirmer de
+     la ligne de commande a exactement ce role ; l'equivalent dans une
+     interface, c'est cette boite de dialogue, pas un second bouton. */
   $("#btn-postuler").onclick = () => {
-    if (confirm("Préparer les candidatures ? Les formulaires seront remplis "
-              + "et capturés pour relecture. Rien ne sera envoyé.")) {
-      lancerTache("candidatures", { canal: "lba", limite: 5, confirmer: false });
+    const limite = 5;
+    const pretes = (etat.vues.find((v) => v.cle === "lettre_prete") || {}).compte || 0;
+    if (!pretes) {
+      toast("Aucune lettre prête. Générer les lettres d'abord.", true);
+      return;
+    }
+    const nombre = Math.min(limite, pretes);
+    if (confirm(`Envoyer ${nombre} candidature${nombre > 1 ? "s" : ""} ?\n\n`
+              + "Les formulaires seront remplis ET VALIDÉS. Les candidatures "
+              + "partiront réellement chez les employeurs.\n\n"
+              + "C'est définitif : une candidature envoyée ne se rattrape pas.")) {
+      lancerTache("candidatures", { canal: "lba", limite, confirmer: true });
     }
   };
 

@@ -186,6 +186,14 @@ def lancer(type_, parametres):
             total = 0
             marqueur = lambda l: l.startswith("# OK")
 
+        elif type_ == "connexion_outlook":
+            # Device code : rien ne s'ouvre sur la machine, l'utilisateur saisit
+            # un code sur une page Microsoft depuis le navigateur de son choix.
+            # L'interface extrait ce code du journal de la tache.
+            commande = ["graph_mail.py", "--connexion"]
+            total = 0
+            marqueur = lambda l: l.startswith("# OK")
+
         elif type_ == "reconnaissance":
             # Inspecte les formulaires avant toute redaction : sans elle, on
             # paie des lettres pour des offres qui n'ont pas de champ ou qui

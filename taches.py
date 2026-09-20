@@ -40,6 +40,30 @@ def _maintenant():
     return datetime.now().isoformat(timespec="seconds")
 
 
+def dernier_echec(conn=None, depuis_heures=6):
+    """Derniere tache echouee, si elle est recente.
+
+    Le panneau d'erreur ne vivait que dans la page ouverte au moment de
+    l'echec : un rechargement, et le message disparaissait sans laisser de
+    trace a l'ecran. On le remonte au demarrage, borne dans le temps pour ne
+    pas ressortir l'echec de la semaine derniere.
+    """
+    propre = conn is None
+    conn = conn or db.connect()
+    try:
+        r = conn.execute(
+            "SELECT * FROM taches ORDER BY id DESC LIMIT 1").fetchone()
+        if r is None or r["statut"] != "echouee" or not r["fin"]:
+            return None
+        ecoule = datetime.now() - datetime.fromisoformat(r["fin"])
+        return dict(r) if ecoule.total_seconds() < depuis_heures * 3600 else None
+    except (ValueError, TypeError):
+        return None
+    finally:
+        if propre:
+            conn.close()
+
+
 def tache_en_cours(conn=None):
     """Tache actuellement active, ou None."""
     propre = conn is None
@@ -150,7 +174,16 @@ def _executer(tache_id, commande, total, extraire_progression=None):
         code = processus.wait()
         texte = "\n".join(sortie)
         if code == 0:
-            _terminer(tache_id, "terminee", f"termine ({fait}/{total})")
+            # Toutes les taches n'ont pas de total connu d'avance : une
+            # collecte n'en a pas. "termine (17/0)" laissait croire a une
+            # division ratee.
+            if total:
+                resume = f"termine ({fait}/{total})"
+            elif fait:
+                resume = f"termine, {fait} etape(s)"
+            else:
+                resume = "termine"
+            _terminer(tache_id, "terminee", resume)
         else:
             # "code de sortie 1" ne dit rien a personne. On cherche dans la
             # sortie de quoi repondre a "et maintenant ?", et on garde la

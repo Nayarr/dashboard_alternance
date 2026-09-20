@@ -1098,7 +1098,22 @@ async function demarrer() {
 
   rendreNav();
   changerVue("a_valider");
-  if (ctx.tache) demarrerSondage();
+  if (ctx.tache) {
+    demarrerSondage();
+  } else if (ctx.dernier_echec) {
+    // Le panneau d'erreur ne vivait que dans la page ouverte au moment de
+    // l'echec. Un rechargement, et le message disparaissait : on repartait
+    // sans savoir pourquoi la derniere tache n'avait rien donne.
+    const p = $("#progression");
+    p.hidden = false;
+    p.className = "progression echouee";
+    $("#prog-titre").textContent =
+      TITRES_TACHE[ctx.dernier_echec.type] || ctx.dernier_echec.type;
+    $("#prog-detail").textContent = "échec précédent";
+    $("#prog-barre").style.width = "100%";
+    $("#prog-ligne").textContent = "";
+    afficherEchec(ctx.dernier_echec);
+  }
 }
 
 demarrer().catch((e) => toast("Démarrage impossible : " + e.message, true));

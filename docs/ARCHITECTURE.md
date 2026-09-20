@@ -84,7 +84,6 @@ flowchart TD
 | `connecter_compte.py` | Capture d'une session de connexion | Ne lit aucun mot de passe |
 | `parametres.py` | Surcouche `data/parametres.json` posee sur `config` | Aucune logique metier |
 | `texte.py` | Normalisation partagee (minuscules, accents) | Rien d'autre |
-| `identite_locale.py` | Identite reelle, hors du depot | Aucune logique |
 | `taches.py` | Execution des traitements longs en arriere-plan, suivi en base | Aucun traitement metier |
 | `dashboard.py` | API HTTP : lecture, mutation de statut, declenchement de taches | Aucun traitement metier |
 | `web/` | Interface : `index.html`, `style.css`, `app.js` | Aucun appel direct a la base |

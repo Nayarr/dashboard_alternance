@@ -68,10 +68,19 @@ Le reste du fichier ne sert qu'a l'envoi par email, decrit ci-dessous.
 cp prompts/systeme_lettre.exemple.md prompts/systeme_lettre.md
 ```
 
-Parcours, experiences, projets, competences reelles. C'est la **seule** source
-dont dispose le redacteur : ce qui n'y figure pas ne sera pas ecrit, et c'est
+Experiences, projets, competences reelles. C'est la **seule** preuve dont
+dispose le redacteur : ce qui n'y figure pas ne sera pas ecrit, et c'est
 volontaire — une lettre qui invente un chiffre se disqualifie plus vite qu'une
 lettre sobre.
+
+L'identite n'y va pas : nom, formation, contact, rythme et dates se saisissent
+dans la page Parametres, qui les ajoute en tete du prompt a chaque lettre et
+fait foi en cas de desaccord.
+
+Le fichier est personnel : git ne le transporte pas d'un poste a l'autre, il
+se recopie a la main. Tant qu'il manque, qu'il reste le gabarit, ou que le
+profil porte encore les valeurs d'exemple, « Generer les lettres » s'arrete
+sur un message qui dit quoi faire, sans rien depenser.
 
 **4. Skills de redaction : rien a faire**
 
@@ -617,7 +626,7 @@ Ce sont des choix, pas des manques :
 ## Contribuer
 
 ```bash
-python -m unittest discover -s tests -t .   # 46 tests, une seconde et demie
+python -m unittest discover -s tests -t .   # 57 tests, une seconde et demie
 python outils/verifier_depot.py             # rien de personnel n'est versionne
 python outils/verifier_interface.py         # app.js, index.html et les routes
 ```

@@ -31,6 +31,8 @@ TAILLE_MAX = 2_000_000
 # Chaque entree donne la phrase affichee a l'utilisateur. L'ordre compte : le
 # premier motif qui correspond gagne.
 DIAGNOSTICS = [
+    # Le message de la redaction dit deja quoi faire : on le rend tel quel.
+    (r"(?m)^Lettres impossibles : (.*)$", "{1}"),
     (r"CLAUDE_CODE_OAUTH_TOKEN absent",
      "Jeton Claude absent. Page Parametres, bloc « Jeton Claude » : le produire "
      "avec `claude setup-token` dans un terminal."),

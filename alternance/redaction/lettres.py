@@ -22,37 +22,92 @@ from alternance import db
 
 BASE = config.RACINE
 LETTRES = BASE / "lettres"
-# Le prompt systeme porte les faits verifies du candidat : parcours, projets,
-# competences. C'est une piece personnelle, exclue du git. Le .exemple qui
-# l'accompagne n'est qu'un gabarit : il ne sert plus de repli. Avec lui,
-# Claude refusait d'ecrire et expliquait pourquoi, en assez de mots pour
-# passer le seuil de longueur : le refus etait enregistre comme une lettre,
-# et l'offre passait en « lettre prete ».
+# Deux sources, chacune pour ce qu'elle sait porter :
+#
+#   - l'identite, la formation, le contact, le rythme et les dates viennent de
+#     la page Parametres (config.PROFIL). La page annonce que ces valeurs
+#     « partent dans les lettres » : c'etait faux, la redaction ne les lisait
+#     jamais. Qui installait l'outil et remplissait l'interface obtenait des
+#     lettres signees « Prenom Nom », ou un refus de Claude ;
+#   - le parcours (experiences, projets, competences) vient de
+#     prompts/systeme_lettre.md, piece personnelle exclue du git, faute de
+#     champ pour le saisir dans l'interface.
+#
+# Le .exemple n'est qu'un gabarit : il ne sert plus de repli. Avec lui, Claude
+# refusait d'ecrire et expliquait pourquoi, en assez de mots pour passer le
+# seuil de longueur : le refus etait enregistre comme une lettre.
 SYSTEME = BASE / "prompts" / "systeme_lettre.md"
 GABARIT = BASE / "prompts" / "systeme_lettre.exemple.md"
-# Ligne du gabarit que personne ne garde en remplissant la section candidat.
-MARQUEUR_GABARIT = "Prénom Nom, 20 ans."
+# Lignes du gabarit que personne ne garde en remplissant son parcours. La
+# premiere est celle de l'ancien gabarit, encore recopie sur certains postes.
+MARQUEURS_GABARIT = ("Prénom Nom, 20 ans.",
+                     "Développement : langages et frameworks réellement pratiqués.")
+# Prefixe reconnu par journal.expliquer : sans lui, l'interface affichait
+# « Arret inattendu, sans message d'erreur » au-dessus du message lui-meme.
+REFUS = "Lettres impossibles : "
 TIMEOUT = 300
+
+# Champs du profil repris dans les lettres, dans l'ordre ou ils se lisent.
+# L'adresse postale et les liens de signature n'y ont pas leur place : le
+# prompt interdit tout en-tete.
+CHAMPS_IDENTITE = [
+    ("nom", "Nom (signature)"),
+    ("titre", "Accroche"),
+    ("formation", "Formation"),
+    ("etablissement", "Etablissement"),
+    ("ville", "Ville de residence"),
+    ("email", "Email"),
+    ("telephone_affiche", "Telephone"),
+    ("debut", "Debut possible"),
+    ("disponibilite", "Disponibilite"),
+    ("fin", "Fin de formation"),
+    ("rythme", "Rythme d'alternance"),
+    ("duree_mois", "Duree de contrat recherchee (mois)"),
+    ("duree_negociable_jusqu_a", "Duree acceptable jusqu'a (mois)"),
+    ("poursuite_etudes", "Poursuite d'etudes"),
+]
+
+
+def bloc_identite():
+    """Le profil saisi dans la page Parametres, tel que le redacteur le lit."""
+    lignes = ["# Identité du candidat",
+              "",
+              "Saisie par le candidat dans l'outil. Ces valeurs font foi : si "
+              "la suite du prompt en donne d'autres, ce sont celles-ci qui "
+              "comptent.",
+              ""]
+    for cle, libelle in CHAMPS_IDENTITE:
+        valeur = config.PROFIL.get(cle)
+        if valeur not in (None, ""):
+            lignes.append(f"- {libelle} : {valeur}")
+    return "\n".join(lignes)
 
 
 def prompt_systeme():
-    """Le prompt systeme rempli, ou une erreur qui dit quoi faire.
+    """Identite + parcours, ou une erreur qui dit quoi faire.
 
-    Verifie avant tout appel : sans les faits du candidat, chaque lettre
-    couterait un appel pour un refus.
+    Verifie avant tout appel : sans ces faits, chaque lettre couterait un
+    appel pour un refus.
     """
+    defaut = config.DEFAUTS["profil"]
+    if any(config.PROFIL.get(c) == defaut[c] for c in ("nom", "email")):
+        raise RuntimeError(
+            REFUS + "le profil porte encore les valeurs d'exemple. Page "
+            "Parametres, bloc « Profil » : renseigner au moins le nom et "
+            "l'email, puis enregistrer.")
     if not SYSTEME.exists():
         raise RuntimeError(
-            "prompts/systeme_lettre.md absent : le copier depuis "
-            f"{GABARIT.name} et remplir la section « Le candidat ». "
-            "C'est un fichier personnel, git ne le transporte pas d'un "
-            "poste a l'autre.")
+            REFUS + "prompts/systeme_lettre.md absent. Le copier depuis "
+            f"{GABARIT.name} et y decrire experiences, projets et "
+            "competences : c'est la seule preuve dont dispose le redacteur, "
+            "et git ne transporte pas ce fichier d'un poste a l'autre.")
     texte = SYSTEME.read_text(encoding="utf-8")
-    if MARQUEUR_GABARIT in texte:
+    if any(m in texte for m in MARQUEURS_GABARIT):
         raise RuntimeError(
-            "prompts/systeme_lettre.md est encore le gabarit : remplir la "
-            "section « Le candidat » avec ses propres faits.")
-    return texte
+            REFUS + "prompts/systeme_lettre.md est encore le gabarit. Y "
+            "remplacer les exemples par ses experiences, projets et "
+            "competences reels.")
+    return bloc_identite() + "\n\n" + texte
 
 
 def slug(texte):
@@ -100,8 +155,11 @@ def nature_contrat(o):
     # echouait pour TOUTES les offres, pas seulement les stages.
     o = dict(o)
     if not filters.est_stage(o):
-        return ("NATURE : ALTERNANCE, rythme 1 semaine entreprise / 1 semaine "
-                "formation. Ne parle pas de duree de stage.")
+        # Le rythme vient du profil : ecrit en dur, il contredisait celui
+        # que le candidat avait saisi dans la page Parametres.
+        rythme = config.PROFIL.get("rythme") or "voir l'identite du candidat"
+        return (f"NATURE : ALTERNANCE, rythme {rythme}. "
+                "Ne parle pas de duree de stage.")
 
     cible = config.STAGE_DUREE_SEMAINES
     base = (f"NATURE : STAGE de {cible} semaines, a temps plein. "

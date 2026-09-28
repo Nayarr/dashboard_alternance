@@ -73,6 +73,10 @@ dont dispose le redacteur : ce qui n'y figure pas ne sera pas ecrit, et c'est
 volontaire — une lettre qui invente un chiffre se disqualifie plus vite qu'une
 lettre sobre.
 
+Le fichier est personnel : git ne le transporte pas d'un poste a l'autre, il
+se recopie a la main. Tant qu'il manque ou reste le gabarit, « Generer les
+lettres » s'arrete sur un message qui le dit, sans rien depenser.
+
 **4. Skills de redaction : rien a faire**
 
 Les trois skills qui relisent les lettres sont livres avec le depot, sous
@@ -617,7 +621,7 @@ Ce sont des choix, pas des manques :
 ## Contribuer
 
 ```bash
-python -m unittest discover -s tests -t .   # 46 tests, une seconde et demie
+python -m unittest discover -s tests -t .   # 51 tests, une seconde et demie
 python outils/verifier_depot.py             # rien de personnel n'est versionne
 python outils/verifier_interface.py         # app.js, index.html et les routes
 ```

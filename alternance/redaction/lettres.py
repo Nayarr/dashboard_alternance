@@ -24,11 +24,35 @@ BASE = config.RACINE
 LETTRES = BASE / "lettres"
 # Le prompt systeme porte les faits verifies du candidat : parcours, projets,
 # competences. C'est une piece personnelle, exclue du git. Le .exemple qui
-# l'accompagne sert de gabarit, et de repli pour que l'outil demarre sans lui.
+# l'accompagne n'est qu'un gabarit : il ne sert plus de repli. Avec lui,
+# Claude refusait d'ecrire et expliquait pourquoi, en assez de mots pour
+# passer le seuil de longueur : le refus etait enregistre comme une lettre,
+# et l'offre passait en « lettre prete ».
 SYSTEME = BASE / "prompts" / "systeme_lettre.md"
-if not SYSTEME.exists():
-    SYSTEME = BASE / "prompts" / "systeme_lettre.exemple.md"
+GABARIT = BASE / "prompts" / "systeme_lettre.exemple.md"
+# Ligne du gabarit que personne ne garde en remplissant la section candidat.
+MARQUEUR_GABARIT = "Prénom Nom, 20 ans."
 TIMEOUT = 300
+
+
+def prompt_systeme():
+    """Le prompt systeme rempli, ou une erreur qui dit quoi faire.
+
+    Verifie avant tout appel : sans les faits du candidat, chaque lettre
+    couterait un appel pour un refus.
+    """
+    if not SYSTEME.exists():
+        raise RuntimeError(
+            "prompts/systeme_lettre.md absent : le copier depuis "
+            f"{GABARIT.name} et remplir la section « Le candidat ». "
+            "C'est un fichier personnel, git ne le transporte pas d'un "
+            "poste a l'autre.")
+    texte = SYSTEME.read_text(encoding="utf-8")
+    if MARQUEUR_GABARIT in texte:
+        raise RuntimeError(
+            "prompts/systeme_lettre.md est encore le gabarit : remplir la "
+            "section « Le candidat » avec ses propres faits.")
+    return texte
 
 
 def slug(texte):
@@ -121,7 +145,7 @@ def appeler_claude(contexte, nature=None):
         + ((nature + "\n\n") if nature else "")
         + contexte
     )
-    systeme = SYSTEME.read_text(encoding="utf-8")
+    systeme = prompt_systeme()
     if config.LETTRE_RELECTURE:
         systeme += "\n" + RELECTURE
 
@@ -174,6 +198,12 @@ def generer(conn, o, force=False):
         return fichier, "deja_ecrite"
 
     texte = nettoyer(appeler_claude(contexte_offre(o), nature_contrat(o)))
+    # Le prompt impose d'ouvrir sur « Madame, Monsieur, ». Un texte qui
+    # commence autrement n'est pas une lettre : un refus, une question, un
+    # « Voici la lettre : ». Le compte de mots seul ne les arretait pas.
+    if not re.match(r"(madame|monsieur)\b", texte, flags=re.I):
+        debut = " ".join(texte.split()[:12])
+        raise RuntimeError(f"pas une lettre, rien n'est enregistre : {debut}...")
     mots = len(texte.split())
     if mots < 120:
         raise RuntimeError(f"lettre anormalement courte ({mots} mots)")
@@ -194,6 +224,13 @@ def main():
                    help="ignore les skills de relecture, environ 8 fois moins "
                         "de jetons et 4 fois plus rapide")
     args = p.parse_args()
+
+    # Une fois pour toutes, avant la boucle : sinon la meme cause s'affiche
+    # en autant d'echecs qu'il y a d'offres.
+    try:
+        prompt_systeme()
+    except RuntimeError as e:
+        sys.exit(str(e))
 
     if args.sans_relecture:
         config.LETTRE_RELECTURE = False

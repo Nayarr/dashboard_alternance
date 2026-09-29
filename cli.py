@@ -31,6 +31,8 @@ COMMANDES = {
                        "redige les lettres des meilleures offres"),
     "pieces":         ("alternance.redaction.pieces", "main",
                        "fabrique les PDF joints a une candidature"),
+    "postuler":       ("alternance.candidature.aiguillage", "main",
+                       "envoie les lettres pretes, chacune par son site"),
     "postuler-lba":   ("alternance.candidature.lba", "main",
                        "depose une candidature sur La Bonne Alternance"),
     "postuler-wttj":  ("alternance.candidature.wttj", "main",

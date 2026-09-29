@@ -1145,19 +1145,40 @@ async function demarrer() {
      et une candidature envoyee ne se rattrape pas. Le drapeau --confirmer de
      la ligne de commande a exactement ce role ; l'equivalent dans une
      interface, c'est cette boite de dialogue, pas un second bouton. */
-  $("#btn-postuler").onclick = () => {
+  /* Le bouton ne lancait que l'envoi LBA : une lettre prete sur une offre
+     WTTJ n'etait jamais envoyee, et sans offre LBA la tache echouait alors
+     que la vue affichait des lettres pretes. Le serveur dit maintenant ce
+     que chaque canal peut envoyer, et ce qui reste a deposer a la main. */
+  $("#btn-postuler").onclick = async () => {
     const limite = 5;
-    const pretes = (etat.vues.find((v) => v.cle === "lettre_prete") || {}).compte || 0;
-    if (!pretes) {
-      toast("Aucune lettre prête. Générer les lettres d'abord.", true);
+    let r;
+    try {
+      r = await api("/api/envoi");
+    } catch (e) {
+      return toast(e.message, true);
+    }
+    const total = (r.canaux.lba || 0) + (r.canaux.wttj || 0);
+    const manuelles = r.manuelles_texte
+      ? `Sans dépôt automatique : ${r.manuelles_texte}. Postuler depuis le `
+        + "lien de l'offre, puis « Marquer envoyée »."
+      : "";
+    if (!total) {
+      toast(manuelles || "Aucune lettre prête. Générer les lettres d'abord.",
+            true);
       return;
     }
-    const nombre = Math.min(limite, pretes);
-    if (confirm(`Envoyer ${nombre} candidature${nombre > 1 ? "s" : ""} ?\n\n`
+    const nombre = Math.min(limite, total);
+    const detail = [
+      r.canaux.lba ? `${r.canaux.lba} La Bonne Alternance` : "",
+      r.canaux.wttj ? `${r.canaux.wttj} Welcome to the Jungle` : "",
+    ].filter(Boolean).join(", ");
+    if (confirm(`Envoyer ${nombre} candidature${nombre > 1 ? "s" : ""} ?`
+              + ` (prêtes : ${detail})\n\n`
               + "Les formulaires seront remplis ET VALIDÉS. Les candidatures "
               + "partiront réellement chez les employeurs.\n\n"
-              + "C'est définitif : une candidature envoyée ne se rattrape pas.")) {
-      lancerTache("candidatures", { canal: "lba", limite, confirmer: true });
+              + "C'est définitif : une candidature envoyée ne se rattrape pas."
+              + (manuelles ? `\n\n${manuelles}` : ""))) {
+      lancerTache("candidatures", { canal: "tout", limite, confirmer: true });
     }
   };
 

@@ -73,6 +73,15 @@ DIAGNOSTICS = [
      "pour l'offre concernee."),
     (r"MemoryError|Cannot allocate memory",
      "Memoire insuffisante pour terminer la tache."),
+    # En fin de liste : quand un canal d'envoi echoue, sa cause precise
+    # (session expiree, navigateur absent...) doit l'emporter sur ce resume.
+    (r"(?m)^(Echec sur : .*)$", "{1}"),
+    # Un canal lance seul, sans rien a envoyer. Ce n'est pas une panne, mais
+    # la phrase brute laissait croire qu'aucune lettre n'etait prete alors
+    # que la vue en affichait.
+    (r"aucune offre (?:WTTJ )?avec lettre prete",
+     "Aucune lettre prete sur ce site. Les lettres pretes concernent d'autres "
+     "sources : le bouton « Envoyer les candidatures » les repartit."),
 ]
 
 # Une ligne de traceback n'apprend rien a qui lit l'interface. La derniere

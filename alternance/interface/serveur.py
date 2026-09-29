@@ -700,6 +700,23 @@ def api_oublier_parcours():
 # Taches de fond
 # --------------------------------------------------------------------------
 
+@app.route("/api/envoi")
+def api_envoi():
+    """Ce que « Envoyer les candidatures » enverra, canal par canal.
+
+    La confirmation annoncait le nombre de lettres pretes, toutes sources
+    confondues, alors que seules LBA et WTTJ ont un depot automatique.
+    """
+    from alternance.candidature import aiguillage
+    conn = db.connect()
+    try:
+        etat = aiguillage.repartition(conn)
+    finally:
+        conn.close()
+    etat["manuelles_texte"] = aiguillage.decrire_manuelles(etat["manuelles"])
+    return jsonify(etat)
+
+
 @app.route("/api/tache", methods=["POST"])
 def api_lancer_tache():
     donnees = request.json or {}

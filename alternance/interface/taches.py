@@ -268,9 +268,12 @@ def lancer(type_, parametres):
             marqueur = lambda l: "rescorees" in l
 
         elif type_ == "candidatures":
-            canal = parametres.get("canal", "lba")
+            # "tout" par defaut : le bouton ne lancait que LBA, et une lettre
+            # prete sur une offre WTTJ n'etait jamais envoyee.
+            canal = parametres.get("canal", "tout")
             limite = int(parametres.get("limite", 5))
-            script = "postuler-lba" if canal == "lba" else "postuler-wttj"
+            script = {"lba": "postuler-lba",
+                      "wttj": "postuler-wttj"}.get(canal, "postuler")
             commande = [script, "--limite", str(limite)]
             if parametres.get("confirmer"):
                 commande.append("--confirmer")

@@ -177,6 +177,19 @@ envoi, connexion aux comptes. **Le bouton « Envoyer les candidatures » envoie
 reellement**, apres une confirmation qui annonce le nombre. C'est le pendant
 du drapeau `--confirmer` de la ligne de commande.
 
+Chaque candidature part par le site dont vient l'offre. L'outil sait deposer
+sur deux sites :
+
+| Source | Depot |
+|---|---|
+| La Bonne Alternance | automatique, si l'offre a un formulaire (les offres relayees depuis France Travail n'en ont pas) |
+| Welcome to the Jungle | automatique, avec le compte connecte dans les Parametres |
+| JobTeaser, Apec, Choisir le service public | a la main, depuis le lien de l'offre |
+
+Les offres a deposer a la main sont annoncees dans la confirmation. Une fois
+la candidature faite sur le site, « Marquer envoyee » la fait passer dans le
+suivi.
+
 Les memes operations en ligne de commande, ou le defaut est l'inverse : rien
 ne part sans `--confirmer`.
 
@@ -188,8 +201,9 @@ python cli.py collecte --rescore     # recalcule scores et filtres sans recollec
 python cli.py reconnaissance         # releve ce que chaque formulaire accepte
 python cli.py lettres --limite 5     # redige les lettres des meilleurs scores
 
-python cli.py postuler-lba --offre 59               # dry-run : remplit sans envoyer
-python cli.py postuler-lba --offre 59 --confirmer   # envoie reellement
+python cli.py postuler --limite 5                   # dry-run : remplit sans envoyer
+python cli.py postuler --limite 5 --confirmer       # envoie reellement, site par site
+python cli.py postuler-lba --offre 59 --confirmer   # une offre precise, un seul site
 
 python cli.py connecter wttj         # ouvre un navigateur pour se connecter
 python cli.py base resume            # repartition de la base

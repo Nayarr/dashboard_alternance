@@ -62,23 +62,29 @@ sur un abonnement plutot que sur l'API facturee au token.
 
 Le reste du fichier ne sert qu'a l'envoi par email, decrit ci-dessous.
 
-**3. CV : c'est lui qui nourrit les lettres**
+**3. CV et parcours**
 
-Deposer le PDF depuis la page **Parametres**, bloc « CV de reference » (ou le
-copier dans `templates/cv/`). Son nom est conserve tel quel : il part en piece
-jointe chez le recruteur.
+Deposer le PDF depuis la page **Parametres**, bloc « CV de reference ». Son
+nom est conserve tel quel : il part en piece jointe chez le recruteur.
 
-Le redacteur y lit experiences, projets et competences. C'est sa **seule**
-source sur le parcours : ce qui n'y figure pas ne sera pas ecrit, et c'est
-volontaire — une lettre qui invente un chiffre se disqualifie plus vite qu'une
-lettre sobre. L'identite, elle, vient de la page Parametres, qui fait foi en
-cas de desaccord avec le CV.
+Le bloc **Parcours**, juste au-dessus, se remplit alors tout seul avec le
+texte du CV : experiences, projets, competences. C'est la **seule** source du
+redacteur des lettres : ce qui n'y figure pas ne sera pas ecrit, et c'est
+volontaire — une lettre qui invente un chiffre se disqualifie plus vite
+qu'une lettre sobre.
+
+Il se modifie librement : retoucher ce que la lecture du PDF a mal mis en
+forme, detailler un projet, ajouter ce que le CV n'a pas la place de dire.
+Tant qu'on n'y touche pas, il suit le CV ; une fois enregistre a la main, un
+nouveau CV ne l'ecrase plus, et « Reprendre depuis le CV » y revient.
+
+L'identite (nom, formation, contact, rythme, dates) vient du bloc Profil, qui
+fait foi en cas de desaccord avec le CV.
 
 Il faut un PDF **exporte** depuis Word, Canva, LaTeX ou Google Docs, pas un
-scan ni une photo : le texte d'une image n'est pas lisible. Tant qu'il n'y a
-pas de CV lisible, ou que le profil porte encore les valeurs d'exemple,
-« Generer les lettres » s'arrete sur un message qui dit quoi faire, sans rien
-depenser.
+scan ni une photo : le texte d'une image n'est pas lisible. Sans CV lisible
+ni parcours ecrit, ou avec un profil encore aux valeurs d'exemple, « Generer
+les lettres » s'arrete sur un message qui dit quoi faire, sans rien depenser.
 
 **4. Skills de redaction : rien a faire**
 
@@ -95,19 +101,12 @@ Le seul reglage les concernant est la case **Relecture des lettres**, page
 Parametres : cochee, les lettres sont nettement meilleures mais coutent huit
 fois plus de jetons. Les chiffres sont plus bas.
 
-**5. Facultatif : un parcours plus detaille que le CV**
+**5. Si tu avais rempli `prompts/systeme_lettre.md`**
 
-Un CV tient sur une page ; certains projets meritent plus. Pour donner au
-redacteur davantage de matiere :
-
-```bash
-cp prompts/systeme_lettre.exemple.md prompts/systeme_lettre.md
-```
-
-puis remplacer la section « Le candidat » par ses propres faits. Une fois
-rempli, ce fichier remplace le CV comme source du parcours. Il est personnel :
-git ne le transporte pas d'un poste a l'autre. Encore au gabarit, il est
-ignore et le CV reprend la main.
+C'etait l'ancienne methode, un fichier edite a la main. Il reste respecte tant
+qu'il est rempli : le bloc Parcours l'affiche, et les lettres l'utilisent tel
+quel. Enregistrer une modification dans le bloc le remplace comme source ; le
+fichier lui-meme n'est ni modifie ni supprime.
 
 ---
 
@@ -587,7 +586,8 @@ alternance/
   geocode.py            adresse vers coordonnees
   collecte.py           orchestration : collecte, enrichissement, rescore
   sources/              un module par site interroge
-  redaction/            lettres.py (Claude headless), pieces.py (DOCX puis PDF)
+  redaction/            lettres.py (Claude headless), parcours.py (CV ou saisie),
+                        pieces.py (DOCX puis PDF)
   candidature/          lba.py, wttj.py, reconnaissance.py, session.py
   courrier/             envoi.py, graph.py
   interface/            serveur.py, taches.py, statique/

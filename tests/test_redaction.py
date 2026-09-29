@@ -15,6 +15,7 @@ from alternance import chemins
 from alternance import config
 from alternance import journal
 from alternance.redaction import lettres
+from alternance.redaction import parcours
 
 PROFIL_SAISI = dict(config.DEFAUTS["profil"], nom="Camille Martin",
                     email="camille.martin@exemple.org",
@@ -24,17 +25,21 @@ PROFIL_SAISI = dict(config.DEFAUTS["profil"], nom="Camille Martin",
 class prompt_rempli:
     """Un parcours rempli et un profil saisi, comme apres la mise en route.
 
-    Le vrai systeme_lettre.md est personnel et absent de la CI, et le profil
-    y reste aux valeurs d'exemple : les tests qui passent l'appel en ont
-    besoin, sans quoi ils s'arretent sur le controle du prompt avant
-    d'atteindre ce qu'ils verifient.
+    Le vrai parcours est personnel et absent de la CI, et le profil y reste
+    aux valeurs d'exemple : les tests qui passent l'appel en ont besoin, sans
+    quoi ils s'arretent sur le controle du prompt avant d'atteindre ce qu'ils
+    verifient. Tout est redirige vers un dossier temporaire : rien ne lit ni
+    n'ecrit le parcours de la personne qui lance la suite.
     """
 
     def start(self):
-        fichier = Path(tempfile.mkdtemp()) / "systeme_lettre.md"
+        dossier = Path(tempfile.mkdtemp())
+        fichier = dossier / "parcours.md"
         fichier.write_text("## Projets\n\nUn outil de suivi de candidatures.\n",
                            encoding="utf-8")
-        self._patches = [mock.patch.object(lettres, "SYSTEME", fichier),
+        self._patches = [mock.patch.object(parcours, "FICHIER", fichier),
+                         mock.patch.object(parcours, "SYSTEME",
+                                           dossier / "systeme_lettre.md"),
                          mock.patch.object(config, "PROFIL", dict(PROFIL_SAISI))]
         for patch in self._patches:
             patch.start()
@@ -158,9 +163,11 @@ class TestParcours(unittest.TestCase):
         self.cv = self.dossier / "CV-Camille Martin.pdf"
         self.cv.write_bytes(pdf_texte(CV_LIGNES))
         self.systeme = self.dossier / "systeme_lettre.md"
+        self.saisi = self.dossier / "parcours.md"
         self._patches = [
             mock.patch.object(config, "PROFIL", dict(PROFIL_SAISI)),
-            mock.patch.object(lettres, "SYSTEME", self.systeme),
+            mock.patch.object(parcours, "SYSTEME", self.systeme),
+            mock.patch.object(parcours, "FICHIER", self.saisi),
             mock.patch.object(chemins, "trouver_cv", return_value=self.cv),
         ]
         for patch in self._patches:
@@ -178,12 +185,12 @@ class TestParcours(unittest.TestCase):
         # d'exemple et son commentaire d'emploi non.
         self.assertIn("# Comment écrire", systeme)
         self.assertIn("# Interdits absolus", systeme)
-        for marqueur in lettres.MARQUEURS_GABARIT:
+        for marqueur in parcours.MARQUEURS_GABARIT:
             self.assertNotIn(marqueur, systeme)
         self.assertNotIn("GABARIT", systeme)
 
     def test_gabarit_recopie_tel_quel_cede_la_place_au_cv(self):
-        self.systeme.write_text(lettres.GABARIT.read_text(encoding="utf-8"),
+        self.systeme.write_text(parcours.GABARIT.read_text(encoding="utf-8"),
                                 encoding="utf-8")
         self.assertIn("Acme Logistique", lettres.prompt_systeme())
 
@@ -205,8 +212,8 @@ class TestParcours(unittest.TestCase):
     def test_un_marqueur_figure_bien_dans_le_gabarit(self):
         """Si le gabarit est reformule, le controle ne doit pas devenir
         muet sans que personne ne s'en apercoive."""
-        gabarit = lettres.GABARIT.read_text(encoding="utf-8")
-        self.assertTrue(any(m in gabarit for m in lettres.MARQUEURS_GABARIT))
+        gabarit = parcours.GABARIT.read_text(encoding="utf-8")
+        self.assertTrue(any(m in gabarit for m in parcours.MARQUEURS_GABARIT))
         self.assertIn("# Le candidat", gabarit)
         self.assertIn("# Comment écrire", gabarit)
 
@@ -257,6 +264,65 @@ class TestParcours(unittest.TestCase):
         raison = journal.expliquer(sortie, 1)
         self.assertNotIn("inattendu", raison)
         self.assertNotIn("Lettres impossibles", raison)
+
+    # ------------------------------------------------ saisie dans l'interface
+
+    def test_la_page_affiche_le_texte_du_cv_sans_les_puces(self):
+        self.cv.write_bytes(pdf_texte(CV_LIGNES + ["Git et Docker ->"]))
+        etat = parcours.lire()
+        self.assertEqual(etat["source"], "cv")
+        self.assertEqual(etat["cv"], self.cv.name)
+        self.assertIn("Acme Logistique", etat["texte"])
+
+    def test_les_fleches_des_puces_sont_retirees(self):
+        texte = parcours.nettoyer_cv("Projet Papyrus\n\u2192\nPipeline Python.\u2192")
+        self.assertEqual(texte, "Projet Papyrus\nPipeline Python.")
+
+    def test_un_parcours_saisi_passe_avant_tout(self):
+        self.systeme.write_text("## Projets\n\nAncien fichier.\n",
+                                encoding="utf-8")
+        parcours.enregistrer("Stage chez Globex : refonte du back-office.")
+        systeme = lettres.prompt_systeme()
+        self.assertIn("Globex", systeme)
+        self.assertNotIn("Ancien fichier", systeme)
+        self.assertNotIn("Acme Logistique", systeme)
+        # Les consignes d'ecriture viennent du gabarit.
+        self.assertIn("# Interdits absolus", systeme)
+        self.assertEqual(parcours.lire()["source"], "manuel")
+
+    def test_un_parcours_saisi_se_passe_de_cv(self):
+        self.cv.unlink()
+        parcours.enregistrer("Stage chez Globex : refonte du back-office.")
+        self.assertIn("Globex", lettres.prompt_systeme())
+
+    def test_enregistrer_un_texte_vide_rend_la_main_au_cv(self):
+        parcours.enregistrer("Stage chez Globex.")
+        parcours.enregistrer("   ")
+        self.assertEqual(parcours.lire()["source"], "cv")
+
+    def test_revenir_au_cv_met_la_saisie_de_cote(self):
+        parcours.enregistrer("Stage chez Globex.")
+        parcours.oublier()
+        self.assertEqual(parcours.lire()["source"], "cv")
+        self.assertIn("Globex", (self.dossier / "parcours.precedent.md")
+                      .read_text(encoding="utf-8"))
+
+    def test_l_ancien_fichier_s_affiche_sans_les_consignes(self):
+        """Le candidat y corrige ses faits, pas les regles du redacteur."""
+        self.systeme.write_text(
+            "Intro.\n\n# Le candidat - faits\n\nStage chez Initech.\n\n"
+            "# Comment écrire\n\nVous / Moi / Nous.\n", encoding="utf-8")
+        etat = parcours.lire()
+        self.assertEqual(etat["source"], "fichier")
+        self.assertEqual(etat["texte"], "Stage chez Initech.")
+
+    def test_sans_cv_ni_saisie_la_page_dit_quoi_faire(self):
+        self.cv.unlink()
+        etat = parcours.lire()
+        self.assertEqual(etat["source"], "aucun")
+        self.assertEqual(etat["texte"], "")
+        self.assertIn("CV", etat["erreur"])
+        self.assertNotIn("Lettres impossibles", etat["erreur"])
 
 
 class TestLettresDejaEnregistrees(unittest.TestCase):

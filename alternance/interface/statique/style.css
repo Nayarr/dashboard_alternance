@@ -484,6 +484,7 @@ button { cursor: pointer; }
 .etat { font-size: 11.5px; color: var(--texte-doux); }
 #etat-jeton { margin-top: 10px; }
 #etat-jeton.manquant { color: var(--clos); }
+#parcours-note.manquant { color: var(--clos); }
 
 /* Une famille exclue est une case a cocher, pas un interrupteur decoratif :
    l'etat coche se lit au trait de gauche, comme dans la navigation. */
@@ -532,6 +533,8 @@ button { cursor: pointer; }
   font: inherit; font-size: 13px; color: var(--encre); line-height: 1.5;
 }
 .champ-long textarea:focus { outline: none; }
+/* Le parcours se relit et se corrige : une chasse fixe aligne mal la prose. */
+#parcours-texte { font-size: 13px; line-height: 1.55; min-height: 280px; }
 .champ-long .note { font-size: 11px; color: var(--texte-tenu); line-height: 1.45; }
 
 .paire-bouton { margin-top: 4px; }

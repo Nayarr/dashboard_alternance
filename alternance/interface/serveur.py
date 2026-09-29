@@ -671,6 +671,31 @@ def api_cv():
     })
 
 
+# Le parcours (experiences, projets, competences) n'avait aucun champ dans
+# l'interface : il ne s'ecrivait que dans un fichier a editer a la main.
+# Il se remplit desormais depuis le CV, et reste modifiable ici.
+
+@app.route("/api/parcours")
+def api_parcours():
+    from alternance.redaction import parcours
+    return jsonify(parcours.lire())
+
+
+@app.route("/api/parcours", methods=["POST"])
+def api_enregistrer_parcours():
+    from alternance.redaction import parcours
+    parcours.enregistrer((request.json or {}).get("texte", ""))
+    return jsonify(parcours.lire())
+
+
+@app.route("/api/parcours", methods=["DELETE"])
+def api_oublier_parcours():
+    """Revient au texte du CV. La saisie est mise de cote, pas supprimee."""
+    from alternance.redaction import parcours
+    parcours.oublier()
+    return jsonify(parcours.lire())
+
+
 # --------------------------------------------------------------------------
 # Taches de fond
 # --------------------------------------------------------------------------

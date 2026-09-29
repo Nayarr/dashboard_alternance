@@ -19,6 +19,7 @@ from pathlib import Path
 from alternance import chemins
 from alternance import config
 from alternance import db
+from alternance.redaction import parcours
 
 BASE = config.RACINE
 LETTRES = BASE / "lettres"
@@ -29,32 +30,10 @@ LETTRES = BASE / "lettres"
 #     « partent dans les lettres » : c'etait faux, la redaction ne les lisait
 #     jamais. Qui installait l'outil et remplissait l'interface obtenait des
 #     lettres signees « Prenom Nom », ou un refus de Claude ;
-#   - le parcours (experiences, projets, competences) vient du CV depose en
-#     haut de la page, ou de prompts/systeme_lettre.md pour qui l'a rempli.
-#
-# Le parcours ne venait que de systeme_lettre.md, un fichier a recopier et a
-# editer a la main. Personne qui s'en tient a l'interface ne le fait : pour
-# eux, aucune lettre n'etait possible, et le message leur demandait d'ouvrir
-# un fichier qu'ils ne sauraient pas trouver. Le CV, lui, est deja depose
-# depuis l'interface, et il contient exactement ces faits.
-#
-# systeme_lettre.md garde la priorite quand il est rempli : il est plus
-# precis qu'un PDF dont la mise en page est perdue a l'extraction.
-SYSTEME = BASE / "prompts" / "systeme_lettre.md"
-GABARIT = BASE / "prompts" / "systeme_lettre.exemple.md"
-# Lignes du gabarit que personne ne garde en remplissant son parcours. La
-# premiere est celle de l'ancien gabarit, encore recopie sur certains postes.
-MARQUEURS_GABARIT = ("Prénom Nom, 20 ans.",
-                     "Développement : langages et frameworks réellement pratiqués.")
-# Prefixe reconnu par journal.expliquer : sans lui, l'interface affichait
-# « Arret inattendu, sans message d'erreur » au-dessus du message lui-meme.
-REFUS = "Lettres impossibles : "
+#   - le parcours (experiences, projets, competences) vient du module
+#     parcours : saisi dans les Parametres, ou lu dans le CV depose.
+REFUS = parcours.REFUS
 TIMEOUT = 300
-# En dessous, le PDF est une image (scan, export aplati) : pypdf n'en tire
-# que des bribes, et une lettre ecrite dessus inventerait le reste. Un CV
-# d'une page en texte en donne plus de 1500.
-CV_MINIMUM = 300
-CV_MAXIMUM = 12000
 
 # Champs du profil repris dans les lettres, dans l'ordre ou ils se lisent.
 # L'adresse postale et les liens de signature n'y ont pas leur place : le
@@ -92,82 +71,6 @@ def bloc_identite():
     return "\n".join(lignes)
 
 
-def parcours_manuel():
-    """Le contenu de systeme_lettre.md s'il a ete rempli, sinon None.
-
-    Absent ou encore au gabarit, il ne compte pas : le CV prend le relais.
-    """
-    if not SYSTEME.exists():
-        return None
-    texte = SYSTEME.read_text(encoding="utf-8")
-    if any(m in texte for m in MARQUEURS_GABARIT):
-        return None
-    return texte
-
-
-def texte_du_cv():
-    """Le texte du CV depose, ou une erreur qui dit quoi deposer.
-
-    Relu a chaque fois : chemins.CV est fige a l'import, or le CV peut etre
-    remplace depuis l'interface pendant que le serveur tourne.
-    """
-    cv = chemins.trouver_cv()
-    if not cv.exists():
-        raise RuntimeError(
-            REFUS + "aucun CV depose. Le deposer dans le cadre en haut de la "
-            "page : c'est de lui que le redacteur tire experiences, projets "
-            "et competences.")
-    try:
-        import logging
-        from pypdf import PdfReader
-        # pypdf avertit sur stderr pour chaque ecart de format, et la tache
-        # l'afficherait dans le journal de l'interface comme une erreur.
-        logging.getLogger("pypdf").setLevel(logging.ERROR)
-        pages = PdfReader(str(cv)).pages
-        texte = "\n".join((p.extract_text() or "") for p in pages)
-    except Exception as e:
-        raise RuntimeError(
-            REFUS + f"le CV {cv.name} n'a pas pu etre lu ({e}). Le deposer "
-            "a nouveau, exporte en PDF depuis Word, Canva ou LaTeX.") from None
-    texte = re.sub(r"[ \t]+", " ", texte).strip()
-    if len(texte) < CV_MINIMUM:
-        raise RuntimeError(
-            REFUS + f"le CV {cv.name} ne contient presque pas de texte "
-            f"lisible ({len(texte)} caracteres) : c'est sans doute une image "
-            "ou un scan. L'exporter en PDF depuis l'outil qui a servi a le "
-            "creer, sans l'aplatir, puis le deposer a nouveau.")
-    return cv, texte[:CV_MAXIMUM]
-
-
-def parcours_depuis_le_cv():
-    """Le gabarit, dont la section candidat est remplacee par le CV.
-
-    Le reste du gabarit - comment ecrire, interdits, format de sortie - est
-    generique et s'applique tel quel.
-    """
-    cv, texte = texte_du_cv()
-    gabarit = GABARIT.read_text(encoding="utf-8")
-    gabarit = re.sub(r"<!--.*?-->\s*", "", gabarit, flags=re.S)
-    section = (
-        "# Le candidat — son CV, seule source de faits sur son parcours\n\n"
-        "Texte extrait automatiquement du PDF de son CV. La mise en page est "
-        "perdue : des colonnes peuvent se meler, des puces apparaitre comme "
-        "des fleches. Reconstitue le sens, n'ajoute rien. Experiences, "
-        "projets, competences, langues : tout ce qui n'y figure pas n'existe "
-        "pas pour toi. Pour l'identite, le contact et les dates, le bloc "
-        "« Identité du candidat » fait foi.\n\n"
-        "Les qualites que le CV revendique (rigueur, creativite...) ne se "
-        "recopient pas : montre-les par un fait, ou tais-les.\n\n"
-        f"<cv fichier=\"{cv.name}\">\n{texte}\n</cv>\n\n")
-    debut = gabarit.find("# Le candidat")
-    fin = gabarit.find("# Comment écrire")
-    if debut == -1 or fin == -1:
-        # Gabarit reformule : mieux vaut un prompt un peu redondant qu'une
-        # section candidat ecrasee sans le savoir.
-        return gabarit + "\n\n" + section
-    return gabarit[:debut] + section + gabarit[fin:]
-
-
 def prompt_systeme():
     """Identite + parcours, ou une erreur qui dit quoi faire.
 
@@ -180,8 +83,7 @@ def prompt_systeme():
             REFUS + "le profil porte encore les valeurs d'exemple. Page "
             "Parametres, bloc « Profil » : renseigner au moins le nom et "
             "l'email, puis enregistrer.")
-    parcours = parcours_manuel() or parcours_depuis_le_cv()
-    return bloc_identite() + "\n\n" + parcours
+    return bloc_identite() + "\n\n" + parcours.prompt()
 
 
 def purger_lettres_invalides(conn):

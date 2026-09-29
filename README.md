@@ -62,25 +62,23 @@ sur un abonnement plutot que sur l'API facturee au token.
 
 Le reste du fichier ne sert qu'a l'envoi par email, decrit ci-dessous.
 
-**3. Faits du candidat pour les lettres**
+**3. CV : c'est lui qui nourrit les lettres**
 
-```bash
-cp prompts/systeme_lettre.exemple.md prompts/systeme_lettre.md
-```
+Deposer le PDF depuis la page **Parametres**, bloc « CV de reference » (ou le
+copier dans `templates/cv/`). Son nom est conserve tel quel : il part en piece
+jointe chez le recruteur.
 
-Experiences, projets, competences reelles. C'est la **seule** preuve dont
-dispose le redacteur : ce qui n'y figure pas ne sera pas ecrit, et c'est
+Le redacteur y lit experiences, projets et competences. C'est sa **seule**
+source sur le parcours : ce qui n'y figure pas ne sera pas ecrit, et c'est
 volontaire — une lettre qui invente un chiffre se disqualifie plus vite qu'une
-lettre sobre.
+lettre sobre. L'identite, elle, vient de la page Parametres, qui fait foi en
+cas de desaccord avec le CV.
 
-L'identite n'y va pas : nom, formation, contact, rythme et dates se saisissent
-dans la page Parametres, qui les ajoute en tete du prompt a chaque lettre et
-fait foi en cas de desaccord.
-
-Le fichier est personnel : git ne le transporte pas d'un poste a l'autre, il
-se recopie a la main. Tant qu'il manque, qu'il reste le gabarit, ou que le
-profil porte encore les valeurs d'exemple, « Generer les lettres » s'arrete
-sur un message qui dit quoi faire, sans rien depenser.
+Il faut un PDF **exporte** depuis Word, Canva, LaTeX ou Google Docs, pas un
+scan ni une photo : le texte d'une image n'est pas lisible. Tant qu'il n'y a
+pas de CV lisible, ou que le profil porte encore les valeurs d'exemple,
+« Generer les lettres » s'arrete sur un message qui dit quoi faire, sans rien
+depenser.
 
 **4. Skills de redaction : rien a faire**
 
@@ -97,11 +95,19 @@ Le seul reglage les concernant est la case **Relecture des lettres**, page
 Parametres : cochee, les lettres sont nettement meilleures mais coutent huit
 fois plus de jetons. Les chiffres sont plus bas.
 
-**5. CV**
+**5. Facultatif : un parcours plus detaille que le CV**
 
-Deposer le PDF dans `templates/cv/` (ou par glisser-deposer depuis la page
-Parametres). Son nom est conserve tel quel : il part en piece jointe chez le
-recruteur.
+Un CV tient sur une page ; certains projets meritent plus. Pour donner au
+redacteur davantage de matiere :
+
+```bash
+cp prompts/systeme_lettre.exemple.md prompts/systeme_lettre.md
+```
+
+puis remplacer la section « Le candidat » par ses propres faits. Une fois
+rempli, ce fichier remplace le CV comme source du parcours. Il est personnel :
+git ne le transporte pas d'un poste a l'autre. Encore au gabarit, il est
+ignore et le CV reprend la main.
 
 ---
 

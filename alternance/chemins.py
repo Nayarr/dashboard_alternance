@@ -67,6 +67,18 @@ def lettre_pdf(offre):
     return dossier_candidature(offre) / "lettre.pdf"
 
 
+def est_une_lettre(texte):
+    """Le prompt impose d'ouvrir sur « Madame, Monsieur, ».
+
+    Un texte qui commence autrement est un refus, une question ou un
+    « Voici la lettre : », quelle que soit sa longueur. Defini ici parce que
+    la redaction ET les envois s'en servent : rien de ce qui echoue a ce
+    controle ne doit partir chez un recruteur.
+    """
+    return bool(texte) and re.match(r"(madame|monsieur)\b", texte.strip(),
+                                    flags=re.I) is not None
+
+
 def lire_lettre(offre):
     """Texte de la lettre, ou None si elle n'a pas encore ete redigee."""
     fichier = lettre_txt(offre)

@@ -132,6 +132,9 @@ def main():
     if not texte.exists():
         sys.exit(f"lettre absente : {texte}\nRediger la lettre avant de generer.")
     corps = texte.read_text(encoding="utf-8")
+    if not chemins.est_une_lettre(corps):
+        sys.exit(f"{texte} n'est pas une lettre (elle doit ouvrir sur "
+                 "« Madame, Monsieur, »). La rediger a nouveau.")
 
     print(f"Offre #{o['id']} — {o['entreprise']}")
 

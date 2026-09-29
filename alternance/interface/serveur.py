@@ -707,6 +707,16 @@ def servir(port=5000):
     if n:
         print(f"{n} tache(s) interrompue(s) par un redemarrage, "
               "marquee(s) echouee(s)")
+    # Au demarrage et pas seulement a la redaction : un refus de Claude
+    # enregistre comme lettre s'affichait en « lettre prete », a un clic
+    # d'etre envoye.
+    from alternance.redaction import lettres
+    conn = db.connect()
+    n = lettres.purger_lettres_invalides(conn)
+    conn.close()
+    if n:
+        print(f"{n} lettre(s) qui n'en etai(en)t pas : offre(s) remise(s) "
+              "a rediger")
     print(f"Tableau de bord : http://127.0.0.1:{port}")
     app.run(host="127.0.0.1", debug=False, port=port, threaded=True)
 

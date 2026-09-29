@@ -250,6 +250,10 @@ def main():
             if not lettre:
                 print("  SAUTE  #" + str(o["id"]) + " " + nom + " : lettre absente")
                 continue
+            if not chemins.est_une_lettre(lettre):
+                print("  SAUTE  #" + str(o["id"]) + " " + nom
+                      + " : le texte enregistre n'est pas une lettre, a rediger")
+                continue
             try:
                 issue, detail = postuler(page, o, lettre, args.confirmer)
             except Exception as e:

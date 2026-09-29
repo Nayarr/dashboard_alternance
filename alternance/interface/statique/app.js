@@ -8,6 +8,7 @@ const etat = {
   offres: [],
   choisie: null,
   parametres: null,
+  parcours: null,    // texte du parcours tel que charge, pour savoir s'il a change
   sondage: null,     // identifiant du setInterval de suivi de tache
 };
 
@@ -364,6 +365,11 @@ async function televerserCV(fichier) {
   try {
     const r = await api("/api/cv", { method: "POST", body: donnees });
     afficherCV({ present: true, nom: r.nom, taille_ko: r.taille_ko });
+    // Un parcours qui suit le CV doit refleter le nouveau, sans rechargement.
+    // Une saisie en cours n'est pas ecrasee.
+    if (!$("#page-parametres").hidden && !parcoursModifie()) {
+      await chargerParcours();
+    }
     toast("CV mis à jour, l'ancien est archivé");
   } catch (e) {
     toast(e.message, true);
@@ -445,6 +451,54 @@ async function chargerParametres() {
   rendreRomes(p);
   rendreMotsCles(p);
   rendreBlocklist(p);
+  await chargerParcours();
+}
+
+// ---------------------------------------------------------------- parcours
+
+/* Le parcours n'avait aucun champ ici : il s'ecrivait dans un fichier a
+   editer a la main, que personne ne trouvait. Il se remplit desormais depuis
+   le CV, et reste modifiable. Tant qu'il n'est pas touche il suit le CV ;
+   une fois enregistre a la main, un nouveau CV ne l'ecrase plus. */
+const SOURCES_PARCOURS = {
+  manuel: "Parcours · écrit à la main",
+  fichier: "Parcours · repris de prompts/systeme_lettre.md",
+  cv: "Parcours · lu dans le CV",
+  aucun: "Parcours",
+};
+const NOTES_PARCOURS = {
+  manuel: "Modifié à la main : un nouveau CV ne l'écrase pas.",
+  fichier: "Enregistrer une modification ici remplace ce fichier comme source.",
+  cv: "Suit le CV tant qu'il n'est pas modifié ici. La mise en page du PDF "
+    + "se perd à la lecture : quelques retouches suffisent.",
+  aucun: "",
+};
+
+async function chargerParcours() {
+  const p = await api("/api/parcours");
+  etat.parcours = p.texte;
+  $("#parcours-texte").value = p.texte;
+  $("#parcours-source").textContent = SOURCES_PARCOURS[p.source]
+    + (p.source === "cv" && p.cv ? ` (${p.cv})` : "");
+  $("#parcours-note").textContent = p.erreur || NOTES_PARCOURS[p.source];
+  $("#parcours-note").classList.toggle("manquant", !!p.erreur);
+  $("#parcours-cv").hidden = !(p.source === "manuel" && p.cv);
+}
+
+function parcoursModifie() {
+  return $("#parcours-texte").value.trim() !== (etat.parcours || "").trim();
+}
+
+async function reprendreParcoursDuCV() {
+  if (!confirm("Remplacer le parcours par le texte du CV ?\n\n"
+      + "Ta version est mise de côté, pas supprimée.")) return;
+  try {
+    await api("/api/parcours", { method: "DELETE" });
+    await chargerParcours();
+    toast("Parcours repris depuis le CV");
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 /* Les champs du profil sont decrits ici et non dans le HTML : l'ordre et les
@@ -781,6 +835,16 @@ async function enregistrerParametres() {
     // n'avait ete saisi - jusqu'au prochain rechargement de la page.
     $("#nom-profil").textContent = r.profil.nom || "Alternance";
     $("#sous-titre").textContent = `seuil d'adéquation ${r.seuil_matching}%`;
+    // Envoye seulement s'il a change : un parcours qui suit le CV doit
+    // continuer de le suivre tant que personne n'y a touche.
+    if (parcoursModifie()) {
+      await api("/api/parcours", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texte: $("#parcours-texte").value }),
+      });
+      await chargerParcours();
+    }
     $("#etat-parametres").textContent =
       "Enregistré. Recalculez les scores pour l'appliquer aux offres déjà collectées.";
     toast("Paramètres enregistrés");
@@ -1015,6 +1079,7 @@ async function demarrer() {
   $("#btn-parametres").onclick = enregistrerParametres;
   $("#btn-jeton").onclick = enregistrerJeton;
   $("#btn-impact").onclick = montrerImpact;
+  $("#parcours-cv").onclick = reprendreParcoursDuCV;
   ["#cherche-alternance", "#cherche-stages"].forEach((sel) => {
     $(sel).onchange = majNatures;
   });

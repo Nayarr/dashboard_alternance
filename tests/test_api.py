@@ -32,6 +32,13 @@ class TestAPI(unittest.TestCase):
         cls._fichier_initial = parametres.FICHIER
         parametres.FICHIER = cls.dossier / "parametres.json"
 
+        # Idem pour le parcours : il est personnel.
+        from alternance.redaction import parcours
+        cls._parcours = parcours
+        cls._parcours_initial = (parcours.FICHIER, parcours.SYSTEME)
+        parcours.FICHIER = cls.dossier / "parcours.md"
+        parcours.SYSTEME = cls.dossier / "systeme_lettre.md"
+
         conn = db.connect()
         conn.execute(
             "INSERT INTO offres (uid, source, entreprise, intitule, statut, "
@@ -46,6 +53,7 @@ class TestAPI(unittest.TestCase):
         db.DB_PATH = cls._chemin_initial
         db._schema_verifie = False
         cls._parametres.FICHIER = cls._fichier_initial
+        cls._parcours.FICHIER, cls._parcours.SYSTEME = cls._parcours_initial
         shutil.rmtree(cls.dossier, ignore_errors=True)
 
     def setUp(self):
@@ -147,6 +155,19 @@ class TestAPI(unittest.TestCase):
     def test_journal_lisible(self):
         d = self.client.get("/api/journal").get_json()
         self.assertIn("contenu", d)
+
+
+    def test_parcours_saisi_puis_rendu_au_cv(self):
+        r = self.client.post("/api/parcours",
+                             json={"texte": "Stage chez Globex."})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json["source"], "manuel")
+        self.assertEqual(self.client.get("/api/parcours").json["texte"],
+                         "Stage chez Globex.")
+
+        r = self.client.delete("/api/parcours")
+        self.assertEqual(r.status_code, 200)
+        self.assertNotEqual(r.json["source"], "manuel")
 
 
 if __name__ == "__main__":

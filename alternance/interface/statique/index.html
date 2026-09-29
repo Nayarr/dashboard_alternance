@@ -105,13 +105,28 @@
         <p class="aide">Ces valeurs partent dans les formulaires de candidature
            et dans chaque lettre : nom, formation, contact, rythme et dates.
            Un formulaire est un document contractuel : rien ne doit y être
-           approximatif. Le parcours (expériences, projets, compétences) n'a
-           pas de champ ici : il s'écrit dans
-           <code>prompts/systeme_lettre.md</code>, sans lequel aucune lettre
-           n'est rédigée.</p>
+           approximatif. Le parcours a son propre bloc, juste en dessous.</p>
         <div class="grille" id="grille-profil"></div>
         <div class="paire-bouton">
           <button class="bouton lien" data-defaut="profil">Rétablir les valeurs par défaut</button>
+        </div>
+      </div>
+
+      <div class="bloc">
+        <h3>Parcours</h3>
+        <p class="aide">Expériences, projets, compétences : la seule source
+           dont dispose le rédacteur des lettres. Ce qui n'y figure pas ne
+           sera pas écrit. Rempli automatiquement à partir du CV déposé plus
+           bas, modifiable librement : préciser un projet, ajouter ce que le
+           CV n'a pas la place de dire.</p>
+        <div class="champ-long">
+          <label for="parcours-texte" id="parcours-source">Parcours</label>
+          <textarea id="parcours-texte" rows="16"
+                    placeholder="Déposez un CV plus bas pour remplir ce bloc, ou écrivez directement : une expérience par paragraphe, ce qui a été fait, avec quelles technologies."></textarea>
+          <span class="note" id="parcours-note"></span>
+        </div>
+        <div class="paire-bouton">
+          <button class="bouton lien" id="parcours-cv" hidden>Reprendre depuis le CV</button>
         </div>
       </div>
 
@@ -147,8 +162,10 @@
 
       <div class="bloc">
         <h3>CV de référence</h3>
-        <p class="aide">Joint à chaque candidature et utilisé pour repérer les
-           correspondances de mots-clés. L'ancien est archivé, jamais écrasé.</p>
+        <p class="aide">Joint à chaque candidature, utilisé pour repérer les
+           correspondances de mots-clés, et lu pour remplir le bloc
+           Parcours. Un PDF exporté depuis Word, Canva ou LaTeX, pas un scan.
+           L'ancien est archivé, jamais écrasé.</p>
         <div class="depot" id="depot">
           <div class="marqueur">↑</div>
           <div class="texte">

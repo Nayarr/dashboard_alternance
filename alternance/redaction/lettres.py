@@ -19,6 +19,7 @@ from pathlib import Path
 from alternance import chemins
 from alternance import config
 from alternance import db
+from alternance.redaction import parcours
 
 BASE = config.RACINE
 LETTRES = BASE / "lettres"
@@ -29,22 +30,9 @@ LETTRES = BASE / "lettres"
 #     « partent dans les lettres » : c'etait faux, la redaction ne les lisait
 #     jamais. Qui installait l'outil et remplissait l'interface obtenait des
 #     lettres signees « Prenom Nom », ou un refus de Claude ;
-#   - le parcours (experiences, projets, competences) vient de
-#     prompts/systeme_lettre.md, piece personnelle exclue du git, faute de
-#     champ pour le saisir dans l'interface.
-#
-# Le .exemple n'est qu'un gabarit : il ne sert plus de repli. Avec lui, Claude
-# refusait d'ecrire et expliquait pourquoi, en assez de mots pour passer le
-# seuil de longueur : le refus etait enregistre comme une lettre.
-SYSTEME = BASE / "prompts" / "systeme_lettre.md"
-GABARIT = BASE / "prompts" / "systeme_lettre.exemple.md"
-# Lignes du gabarit que personne ne garde en remplissant son parcours. La
-# premiere est celle de l'ancien gabarit, encore recopie sur certains postes.
-MARQUEURS_GABARIT = ("Prénom Nom, 20 ans.",
-                     "Développement : langages et frameworks réellement pratiqués.")
-# Prefixe reconnu par journal.expliquer : sans lui, l'interface affichait
-# « Arret inattendu, sans message d'erreur » au-dessus du message lui-meme.
-REFUS = "Lettres impossibles : "
+#   - le parcours (experiences, projets, competences) vient du module
+#     parcours : saisi dans les Parametres, ou lu dans le CV depose.
+REFUS = parcours.REFUS
 TIMEOUT = 300
 
 # Champs du profil repris dans les lettres, dans l'ordre ou ils se lisent.
@@ -95,19 +83,38 @@ def prompt_systeme():
             REFUS + "le profil porte encore les valeurs d'exemple. Page "
             "Parametres, bloc « Profil » : renseigner au moins le nom et "
             "l'email, puis enregistrer.")
-    if not SYSTEME.exists():
-        raise RuntimeError(
-            REFUS + "prompts/systeme_lettre.md absent. Le copier depuis "
-            f"{GABARIT.name} et y decrire experiences, projets et "
-            "competences : c'est la seule preuve dont dispose le redacteur, "
-            "et git ne transporte pas ce fichier d'un poste a l'autre.")
-    texte = SYSTEME.read_text(encoding="utf-8")
-    if any(m in texte for m in MARQUEURS_GABARIT):
-        raise RuntimeError(
-            REFUS + "prompts/systeme_lettre.md est encore le gabarit. Y "
-            "remplacer les exemples par ses experiences, projets et "
-            "competences reels.")
-    return bloc_identite() + "\n\n" + texte
+    return bloc_identite() + "\n\n" + parcours.prompt()
+
+
+def purger_lettres_invalides(conn):
+    """Remet a rediger les offres dont la « lettre » n'en est pas une.
+
+    Avant le controle d'ouverture, un refus de Claude long de plus de 120
+    mots etait enregistre comme lettre, et l'offre passait en « lettre
+    prete ». Ce controle empeche d'en produire de nouveaux, pas d'effacer
+    ceux qui sont deja sur disque - et le bouton « Envoyer les
+    candidatures » les aurait colles dans le formulaire du recruteur.
+
+    Le fichier est renomme et non supprime : il reste lisible pour qui veut
+    comprendre ce qui s'est passe.
+    """
+    remises = 0
+    for o in conn.execute("SELECT id, entreprise FROM offres "
+                          "WHERE statut = 'lettre_prete'").fetchall():
+        fichier = chemins.lettre_txt(o)
+        texte = chemins.lire_lettre(o)
+        if chemins.est_une_lettre(texte):
+            continue
+        if fichier.exists():
+            fichier.replace(fichier.with_name("lettre.rejetee.txt"))
+        conn.execute("UPDATE offres SET statut = 'a_traiter' WHERE id = ?",
+                     (o["id"],))
+        db.log(conn, o["id"], "lettre:rejetee",
+               "le texte enregistre n'etait pas une lettre")
+        remises += 1
+    if remises:
+        conn.commit()
+    return remises
 
 
 def slug(texte):
@@ -259,7 +266,7 @@ def generer(conn, o, force=False):
     # Le prompt impose d'ouvrir sur « Madame, Monsieur, ». Un texte qui
     # commence autrement n'est pas une lettre : un refus, une question, un
     # « Voici la lettre : ». Le compte de mots seul ne les arretait pas.
-    if not re.match(r"(madame|monsieur)\b", texte, flags=re.I):
+    if not chemins.est_une_lettre(texte):
         debut = " ".join(texte.split()[:12])
         raise RuntimeError(f"pas une lettre, rien n'est enregistre : {debut}...")
     mots = len(texte.split())
@@ -297,6 +304,10 @@ def main():
               "(--sans-relecture pour l'ignorer)\n")
 
     conn = db.connect()
+    remises = purger_lettres_invalides(conn)
+    if remises:
+        print(f"{remises} lettre(s) enregistree(s) qui n'en etai(en)t pas : "
+              "offre(s) remise(s) a rediger\n")
     if args.offre:
         offres = conn.execute("SELECT * FROM offres WHERE id = ?",
                               (args.offre,)).fetchall()

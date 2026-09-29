@@ -671,6 +671,31 @@ def api_cv():
     })
 
 
+# Le parcours (experiences, projets, competences) n'avait aucun champ dans
+# l'interface : il ne s'ecrivait que dans un fichier a editer a la main.
+# Il se remplit desormais depuis le CV, et reste modifiable ici.
+
+@app.route("/api/parcours")
+def api_parcours():
+    from alternance.redaction import parcours
+    return jsonify(parcours.lire())
+
+
+@app.route("/api/parcours", methods=["POST"])
+def api_enregistrer_parcours():
+    from alternance.redaction import parcours
+    parcours.enregistrer((request.json or {}).get("texte", ""))
+    return jsonify(parcours.lire())
+
+
+@app.route("/api/parcours", methods=["DELETE"])
+def api_oublier_parcours():
+    """Revient au texte du CV. La saisie est mise de cote, pas supprimee."""
+    from alternance.redaction import parcours
+    parcours.oublier()
+    return jsonify(parcours.lire())
+
+
 # --------------------------------------------------------------------------
 # Taches de fond
 # --------------------------------------------------------------------------
@@ -707,6 +732,16 @@ def servir(port=5000):
     if n:
         print(f"{n} tache(s) interrompue(s) par un redemarrage, "
               "marquee(s) echouee(s)")
+    # Au demarrage et pas seulement a la redaction : un refus de Claude
+    # enregistre comme lettre s'affichait en « lettre prete », a un clic
+    # d'etre envoye.
+    from alternance.redaction import lettres
+    conn = db.connect()
+    n = lettres.purger_lettres_invalides(conn)
+    conn.close()
+    if n:
+        print(f"{n} lettre(s) qui n'en etai(en)t pas : offre(s) remise(s) "
+              "a rediger")
     print(f"Tableau de bord : http://127.0.0.1:{port}")
     app.run(host="127.0.0.1", debug=False, port=port, threaded=True)
 

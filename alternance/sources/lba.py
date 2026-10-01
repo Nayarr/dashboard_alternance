@@ -5,6 +5,12 @@ GET /api/job/v1/search renvoie deux gisements :
   - recruiters : entreprises susceptibles de recruter, sans offre publiee
                  -> candidature spontanee
 Rate limit : 60 appels / minute.
+
+Seules les entrees qui portent un recipient_id sont gardees. C'est lui qui
+designe le formulaire de candidature LBA : sans lui, la page de l'offre
+n'affiche qu'un numero de telephone, ou renvoie vers France Travail. Ces
+entrees etaient collectees, notees, puis classees « Sans moyen de postuler »
+- 180 sur 285 chez un testeur, deux tiers du volume pour rien.
 """
 
 import hashlib
@@ -144,12 +150,22 @@ def _map_recruiter(r):
     }
 
 
-def collecte(romes=None, radius=None, inclure_spontanees=True):
-    """Interroge l'API pour chaque code ROME et retourne des offres normalisees."""
+def avec_formulaire(offre):
+    """L'offre peut-elle recevoir une candidature par le formulaire LBA ?"""
+    return bool(offre.get("recipient_id"))
+
+
+def collecte(romes=None, radius=None, inclure_spontanees=True,
+             garder_sans_formulaire=False):
+    """Interroge l'API pour chaque code ROME et retourne des offres normalisees.
+
+    Les entrees sans formulaire sont ecartees, sauf garder_sans_formulaire.
+    """
     romes = romes or config.ROMES
     radius = radius or config.RAYON_KM
     lat, lon = config.ORIGINE
     resultats = []
+    ecartees = 0
 
     for rome in romes:
         params = {
@@ -170,8 +186,16 @@ def collecte(romes=None, radius=None, inclure_spontanees=True):
         jobs = [_map_job(j) for j in data.get("jobs", [])]
         recruiters = [_map_recruiter(x) for x in data.get("recruiters", [])] \
             if inclure_spontanees else []
-        resultats += jobs + recruiters
-        print(f"  ROME {rome}: {len(jobs)} offres, {len(recruiters)} recruteurs")
+        entrees = jobs + recruiters
+        gardees = entrees if garder_sans_formulaire \
+            else [o for o in entrees if avec_formulaire(o)]
+        ecartees += len(entrees) - len(gardees)
+        resultats += gardees
+        print(f"  ROME {rome}: {len(jobs)} offres, {len(recruiters)} recruteurs, "
+              f"{len(entrees) - len(gardees)} sans formulaire ecartees")
         time.sleep(1.1)  # 60 appels/min
 
+    if ecartees:
+        print(f"  {ecartees} entree(s) sans formulaire LBA non collectee(s) : "
+              "aucun moyen d'y postuler")
     return resultats

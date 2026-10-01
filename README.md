@@ -497,6 +497,13 @@ France Travail, PASS, Veritone, Meteojob, Maazi), et `recruiters`, environ 150
 entreprises par code ROME susceptibles de recruter sans offre publiee — c'est
 la donnee de La Bonne Boite, exploitee en candidature spontanee.
 
+Seules les entrees qui portent un `recipient_id` sont collectees : c'est lui
+qui designe le formulaire de candidature LBA. Sans lui, la page n'affiche
+qu'un numero de telephone ou renvoie vers France Travail, et l'offre finissait
+dans « Sans moyen de postuler ». Environ deux entrees sur trois sont dans ce
+cas. Une entreprise deja en base sans formulaire, qui en obtient un plus tard,
+est reprise a la collecte suivante.
+
 **Welcome to the Jungle** (`alternance/sources/wttj.py`) — le site est une SPA, `/fr/jobs`
 renvoie 550 Ko de HTML sans aucun `JobPosting`. Son propre front interroge un
 index Algolia avec une cle de recherche publique embarquee dans le bundle JS :

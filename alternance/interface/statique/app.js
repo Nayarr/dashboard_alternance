@@ -40,6 +40,13 @@ const SUITES = {
     { statut: "entretien", libelle: "Entretien obtenu", classe: "primaire" },
     { statut: "refus", libelle: "Refus" },
   ],
+  // L'outil n'envoie pas la relance : il dit quand la faire, et on note
+  // qu'elle est faite. Elle se fait par le canal de la candidature.
+  a_relancer: [
+    { relance: true, libelle: "Relance faite", classe: "primaire" },
+    { statut: "entretien", libelle: "Entretien obtenu" },
+    { statut: "refus", libelle: "Refus" },
+  ],
   entretien: [
     { statut: "signee", libelle: "Alternance signée", classe: "primaire" },
     { statut: "refus", libelle: "Refus" },
@@ -195,7 +202,8 @@ function rendreListe() {
         <div class="corps">
           <div class="intitule">${o.intitule || "(sans intitulé)"}</div>
           <div class="ligne-meta">${o.entreprise || "employeur non communiqué"}<span
-            class="sep">/</span><span class="lieu">${o.lieu || "lieu inconnu"} · ${distance}</span></div>
+            class="sep">/</span><span class="lieu">${o.lieu || "lieu inconnu"} · ${distance}</span>${
+            o.date_relance_prevue ? `<span class="sep">/</span>relance due le ${dateCourte(o.date_relance_prevue)}` : ""}</div>
           <div class="cles">${cles}</div>
         </div>
         <div class="adequation ${classeAdequation(o.matching)}">
@@ -265,6 +273,8 @@ async function ouvrirDetail(id) {
          · source ${o.source}</p>
     </div>
 
+    ${blocSuivi(o.suivi)}
+
     ${o.description ? `<div class="section"><h4>Annonce</h4>
       <div class="extrait">${o.description.slice(0, 4000)}</div></div>` : ""}
 
@@ -279,7 +289,8 @@ async function ouvrirDetail(id) {
         ? `<button class="bouton primaire" data-action="recuperer">Récupérer dans le vivier</button>`
         : ""}
       ${(SUITES[etat.vue] || []).map((s) =>
-        `<button class="bouton ${s.classe || ""}" data-action="${s.statut}"
+        `<button class="bouton ${s.classe || ""}"
+                 data-action="${s.relance ? "relance" : s.statut}"
                  ${s.rouvrir ? "data-rouvrir" : ""}>${s.libelle}</button>`).join("")}
       ${lien}
       <button class="bouton retrait" data-action="retirer">Retirer de la liste</button>
@@ -293,7 +304,50 @@ async function ouvrirDetail(id) {
   $("#detail").onclick = (e) => e.stopPropagation();
 }
 
+async function noterRelance(id) {
+  try {
+    const r = await api(`/api/offre/${id}/relance`, { method: "POST" });
+    toast(r.prochaine
+      ? `Relance notée. Prochain rappel le ${dateCourte(r.prochaine)}`
+      : "Relance notée. Plus de rappel pour cette candidature");
+    etat.choisie = null;
+    $("#contenu").classList.remove("avec-detail");
+    await Promise.all([chargerOffres(), rafraichirComptes()]);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+function dateCourte(iso) {
+  if (!iso) return "";
+  const [a, m, j] = iso.slice(0, 10).split("-");
+  return `${j}/${m}/${a}`;
+}
+
+/* Le suivi d'une candidature partie : sans lui, la relance enregistree a
+   chaque envoi n'apparaissait nulle part, et une relance manquee ne se
+   voyait pas puisqu'on ignorait qu'elle etait due. */
+function blocSuivi(s) {
+  if (!s) return "";
+  const relances = s.nb_relances
+    ? ` · ${s.nb_relances} relance${s.nb_relances > 1 ? "s" : ""} faite${s.nb_relances > 1 ? "s" : ""}`
+    : "";
+  let etatRelance;
+  if (s.type_reponse) {
+    etatRelance = `réponse reçue le ${dateCourte(s.date_reponse)}`;
+  } else if (!s.date_relance_prevue) {
+    etatRelance = "plus de relance prévue";
+  } else if (s.relance_due) {
+    etatRelance = `<b>relance à faire</b> depuis le ${dateCourte(s.date_relance_prevue)}`;
+  } else {
+    etatRelance = `relance prévue le ${dateCourte(s.date_relance_prevue)}`;
+  }
+  return `<div class="section"><h4>Suivi</h4>
+    <p>Envoyée le ${dateCourte(s.date_envoi)} · ${etatRelance}${relances}</p></div>`;
+}
+
 async function changerStatut(id, action, rouvrir = false) {
+  if (action === "relance") return noterRelance(id);
   const statut = action === "retirer" ? "rejete_manuel" : action;
   // Rouvrir efface la reponse enregistree : c'etait possible d'un clic, sans
   // avertissement, et le refus disparaissait sans retour possible.

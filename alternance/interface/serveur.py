@@ -100,6 +100,9 @@ VUES = [
     {"cle": "a_traiter", "titre": "Validé", "groupe": "tri", "couleur": "actif"},
     {"cle": "lettre_prete", "titre": "Lettre prête", "groupe": "pipeline", "couleur": "redige"},
     {"cle": "envoyee", "titre": "Envoyée", "groupe": "pipeline", "couleur": "actif"},
+    # Pas un statut : les offres envoyees dont la relance est due. Elle etait
+    # enregistree a chaque envoi, et rien ne l'affichait nulle part.
+    {"cle": "a_relancer", "titre": "À relancer", "groupe": "pipeline", "couleur": "attente"},
     {"cle": "entretien", "titre": "Entretien", "groupe": "pipeline", "couleur": "avance"},
     {"cle": "signee", "titre": "Signée", "groupe": "pipeline", "couleur": "avance"},
     {"cle": "refus", "titre": "Refus", "groupe": "pipeline", "couleur": "clos"},
@@ -110,6 +113,25 @@ VUES = [
     {"cle": "ats_externe", "titre": "ATS externe", "groupe": "rebut", "couleur": "inerte"},
 ]
 CLES_VISIBLES = [v["cle"] for v in VUES]
+
+# Au-dela, plus de rappel : une troisieme relance sans reponse insiste plus
+# qu'elle n'aide.
+MAX_RELANCES = 2
+# Les offres dont la relance est due. date('now') comme a l'ecriture de
+# date_relance_prevue : les deux sont en UTC.
+RELANCES_DUES = (
+    "FROM offres o JOIN candidatures c ON c.offre_id = o.id "
+    "WHERE o.statut = 'envoyee' AND c.date_relance_prevue IS NOT NULL "
+    "AND c.date_relance_prevue <= date('now')")
+
+
+def _comptes(conn):
+    """Nombre d'offres par vue, « A relancer » compris."""
+    compte = {r["statut"]: r["n"] for r in conn.execute(
+        "SELECT statut, COUNT(*) n FROM offres GROUP BY statut")}
+    compte["a_relancer"] = conn.execute(
+        "SELECT COUNT(*) " + RELANCES_DUES).fetchone()[0]
+    return {v["cle"]: compte.get(v["cle"], 0) for v in VUES}
 
 
 # --------------------------------------------------------------------------
@@ -221,8 +243,7 @@ def statique(fichier):
 def api_contexte():
     """Tout ce dont l'interface a besoin au demarrage."""
     conn = db.connect()
-    compte = {r["statut"]: r["n"] for r in conn.execute(
-        "SELECT statut, COUNT(*) n FROM offres GROUP BY statut")}
+    compte = _comptes(conn)
     sources = [r["source"] for r in conn.execute(
         "SELECT source, COUNT(*) n FROM offres GROUP BY source ORDER BY n DESC")]
     conn.close()
@@ -254,15 +275,21 @@ def api_offres():
     if statut not in CLES_VISIBLES:
         return jsonify({"erreur": "vue inconnue"}), 400
 
-    sql = "SELECT * FROM offres WHERE statut = ?"
-    params = [statut]
-    for champ in ("genre", "source"):
-        valeur = request.args.get(champ)
-        if valeur:
-            sql += f" AND {champ} = ?"
-            params.append(valeur)
-    sql += " ORDER BY matching DESC, score DESC LIMIT ?"
-    params.append(int(request.args.get("limite", 400)))
+    if statut == "a_relancer":
+        # La plus en retard d'abord : c'est elle qu'on risque d'oublier.
+        sql = ("SELECT o.*, c.date_relance_prevue, c.nb_relances "
+               + RELANCES_DUES + " ORDER BY c.date_relance_prevue LIMIT ?")
+        params = [int(request.args.get("limite", 400))]
+    else:
+        sql = "SELECT * FROM offres WHERE statut = ?"
+        params = [statut]
+        for champ in ("genre", "source"):
+            valeur = request.args.get(champ)
+            if valeur:
+                sql += f" AND {champ} = ?"
+                params.append(valeur)
+        sql += " ORDER BY matching DESC, score DESC LIMIT ?"
+        params.append(int(request.args.get("limite", 400)))
 
     conn = db.connect()
     lignes = [_ligne(r) for r in conn.execute(sql, params)]
@@ -281,8 +308,47 @@ def api_offre(offre_id):
     detail["evenements"] = [dict(e) for e in conn.execute(
         "SELECT date, type, detail FROM evenements WHERE offre_id = ? "
         "ORDER BY id DESC LIMIT 12", (offre_id,))]
+    # Date d'envoi, relance prevue, relances faites : rien de tout cela
+    # n'apparaissait, la relance n'existait donc pour personne.
+    suivi = conn.execute(
+        "SELECT date_envoi, date_relance_prevue, nb_relances, type_reponse, "
+        "date_reponse, date_relance_prevue <= date('now') AS relance_due "
+        "FROM candidatures WHERE offre_id = ?", (offre_id,)).fetchone()
+    detail["suivi"] = dict(suivi) if suivi else None
     conn.close()
     return jsonify(detail)
+
+
+@app.route("/api/offre/<int:offre_id>/relance", methods=["POST"])
+def api_relance(offre_id):
+    """Note qu'une relance a ete faite, et prevoit la suivante.
+
+    L'outil n'envoie jamais de relance lui-meme : il ne s'autorise aucun envoi
+    sans un clic explicite, et une relance se fait mieux a la main, par le
+    canal ou la candidature est partie. Il dit seulement quand la faire.
+    """
+    conn = db.connect()
+    ligne = conn.execute(
+        "SELECT c.nb_relances FROM candidatures c JOIN offres o "
+        "ON o.id = c.offre_id WHERE c.offre_id = ? AND o.statut = 'envoyee'",
+        (offre_id,)).fetchone()
+    if ligne is None:
+        conn.close()
+        return jsonify({"erreur": "aucune candidature en attente de reponse "
+                        "pour cette offre"}), 409
+    faites = (ligne["nb_relances"] or 0) + 1
+    prochaine = None
+    if faites < MAX_RELANCES:
+        prochaine = conn.execute("SELECT date('now', '+7 days')").fetchone()[0]
+    conn.execute(
+        "UPDATE candidatures SET nb_relances = ?, date_relance_prevue = ? "
+        "WHERE offre_id = ?", (faites, prochaine, offre_id))
+    db.log(conn, offre_id, "relance:faite",
+           f"relance {faites}" + (f", suivante le {prochaine}" if prochaine
+                                  else ", plus de rappel"))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "nb_relances": faites, "prochaine": prochaine})
 
 
 # --------------------------------------------------------------------------
@@ -763,12 +829,11 @@ def api_lancer_tache():
 def api_tache():
     conn = db.connect()
     r = conn.execute("SELECT * FROM taches ORDER BY id DESC LIMIT 1").fetchone()
-    compte = {x["statut"]: x["n"] for x in conn.execute(
-        "SELECT statut, COUNT(*) n FROM offres GROUP BY statut")}
+    compte = _comptes(conn)
     conn.close()
     return jsonify({
         "tache": dict(r) if r else None,
-        "compte": {v["cle"]: compte.get(v["cle"], 0) for v in VUES},
+        "compte": compte,
     })
 
 

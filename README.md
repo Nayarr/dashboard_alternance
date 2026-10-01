@@ -452,6 +452,15 @@ Le pipeline se pilote depuis le panneau de detail d'une offre :
     Envoyee       --[Entretien obtenu]->  Entretien   --[Refus]--> Refus
     Entretien     --[Alternance signee]-> Signee
     Refus, Signee --[Rouvrir le suivi]->  etape precedente
+    A relancer    --[Relance faite]---->  Envoyee, prochain rappel a J+7
+
+L'onglet **A relancer** liste les candidatures envoyees depuis sept jours sans
+reponse, la plus en retard d'abord. L'outil n'envoie aucune relance lui-meme :
+il ne s'autorise aucun envoi sans un clic, et une relance se fait mieux par le
+canal de la candidature. On relance, puis « Relance faite » : le rappel
+suivant tombe sept jours plus tard, et apres deux relances il n'y en a plus.
+Le detail d'une offre envoyee donne la date d'envoi, la prochaine relance et
+le nombre deja faites.
 
 « Marquer envoyee » compte autant que le reste : le depot automatise ne couvre
 que La Bonne Alternance et Welcome to the Jungle. Les offres du portail de

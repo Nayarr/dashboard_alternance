@@ -175,6 +175,64 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(ligne["date_relance_prevue"], attendue)
         self.assertIsNone(ligne["type_reponse"])
 
+    # ---------------------------------------------------------- relances
+    # Une relance etait enregistree a chaque envoi, et rien ne l'affichait :
+    # pas d'onglet, pas de compteur, rien dans le detail. 53 relances prevues
+    # chez un testeur, aucune visible.
+
+    def relance_prevue_dans(self, jours):
+        self.client.post("/api/offre/1/statut", json={"statut": "envoyee"})
+        conn = db.connect()
+        conn.execute("UPDATE candidatures SET date_relance_prevue = "
+                     "date('now', ?) WHERE offre_id = 1", (f"{jours} days",))
+        conn.commit()
+        conn.close()
+
+    def a_relancer(self):
+        ids = [o["id"] for o in
+               self.client.get("/api/offres?statut=a_relancer").get_json()]
+        compte = self.client.get("/api/tache").get_json()["compte"]["a_relancer"]
+        return ids, compte
+
+    def test_une_relance_due_apparait(self):
+        self.relance_prevue_dans(-1)
+        self.assertEqual(self.a_relancer(), ([1], 1))
+        suivi = self.client.get("/api/offre/1").get_json()["suivi"]
+        self.assertEqual(suivi["relance_due"], 1)
+        self.assertIsNotNone(suivi["date_envoi"])
+
+    def test_une_relance_a_venir_n_apparait_pas(self):
+        self.relance_prevue_dans(3)
+        self.assertEqual(self.a_relancer(), ([], 0))
+        self.assertEqual(
+            self.client.get("/api/offre/1").get_json()["suivi"]["relance_due"], 0)
+
+    def test_relance_faite_prevoit_la_suivante_puis_s_arrete(self):
+        self.relance_prevue_dans(0)
+        r = self.client.post("/api/offre/1/relance").get_json()
+        self.assertEqual(r["nb_relances"], 1)
+        self.assertIsNotNone(r["prochaine"])
+        self.assertEqual(self.a_relancer(), ([], 0))
+
+        conn = db.connect()
+        conn.execute("UPDATE candidatures SET date_relance_prevue = "
+                     "date('now') WHERE offre_id = 1")
+        conn.commit()
+        conn.close()
+        r = self.client.post("/api/offre/1/relance").get_json()
+        self.assertEqual(r["nb_relances"], 2)
+        self.assertIsNone(r["prochaine"])
+        self.assertEqual(self.a_relancer(), ([], 0))
+
+    def test_une_reponse_sort_l_offre_des_relances(self):
+        self.relance_prevue_dans(-2)
+        self.client.post("/api/offre/1/statut", json={"statut": "entretien"})
+        self.assertEqual(self.a_relancer(), ([], 0))
+
+    def test_relance_refusee_sans_candidature_en_attente(self):
+        r = self.client.post("/api/offre/1/relance")
+        self.assertEqual(r.status_code, 409)
+
     def test_statut_invalide_refuse(self):
         r = self.client.post("/api/offre/1/statut", json={"statut": "pirate"})
         self.assertEqual(r.status_code, 400)

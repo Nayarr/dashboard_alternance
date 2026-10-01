@@ -99,6 +99,10 @@ VUES = [
     {"cle": "a_valider", "titre": "À valider", "groupe": "tri", "couleur": "attente"},
     {"cle": "a_traiter", "titre": "Validé", "groupe": "tri", "couleur": "actif"},
     {"cle": "lettre_prete", "titre": "Lettre prête", "groupe": "pipeline", "couleur": "redige"},
+    # Formulaire valide, confirmation du site non lue. Ces offres restaient en
+    # « lettre prete », et le clic suivant sur « Envoyer » postulait une
+    # seconde fois chez le meme employeur.
+    {"cle": "a_verifier", "titre": "Envoi à vérifier", "groupe": "pipeline", "couleur": "attente"},
     {"cle": "envoyee", "titre": "Envoyée", "groupe": "pipeline", "couleur": "actif"},
     # Pas un statut : les offres envoyees dont la relance est due. Elle etait
     # enregistree a chaque envoi, et rien ne l'affichait nulle part.
@@ -311,8 +315,9 @@ def api_offre(offre_id):
     # Date d'envoi, relance prevue, relances faites : rien de tout cela
     # n'apparaissait, la relance n'existait donc pour personne.
     suivi = conn.execute(
-        "SELECT date_envoi, date_relance_prevue, nb_relances, type_reponse, "
-        "date_reponse, date_relance_prevue <= date('now') AS relance_due "
+        "SELECT statut, notes, date_envoi, date_relance_prevue, nb_relances, "
+        "type_reponse, date_reponse, "
+        "date_relance_prevue <= date('now') AS relance_due "
         "FROM candidatures WHERE offre_id = ?", (offre_id,)).fetchone()
     detail["suivi"] = dict(suivi) if suivi else None
     conn.close()
@@ -424,6 +429,13 @@ def _suivre_reponse(conn, offre_id, statut):
     courant, `candidatures` porte le journal de l'envoi et des relances. Sans
     ce report, la date de relance restait armee apres un refus.
     """
+    if statut == "lettre_prete":
+        # « Pas parti » depuis Envoi a verifier : la ligne posee au clic ne
+        # decrit aucun envoi reel, et bloquerait un nouvel essai.
+        conn.execute("DELETE FROM candidatures WHERE offre_id = ? "
+                     "AND statut = 'incertain'", (offre_id,))
+        return
+
     if statut == "envoyee":
         existe = conn.execute(
             "SELECT type_reponse FROM candidatures WHERE offre_id = ?",

@@ -16,6 +16,7 @@ from unittest import mock
 from alternance import db
 from alternance import journal
 from alternance.candidature import aiguillage
+from alternance.candidature import confirmation
 
 
 class TestAiguillage(unittest.TestCase):
@@ -143,6 +144,10 @@ class TestAiguillage(unittest.TestCase):
             source = (racine / f"{module.rsplit('.', 1)[1]}.py").read_text(
                 encoding="utf-8")
             for fragment in aiguillage.CONDITIONS[cle].split(" AND "):
+                # La garde contre le double envoi est une constante partagee :
+                # c'est elle que le canal doit citer, pas sa valeur recopiee.
+                if fragment == confirmation.JAMAIS_CANDIDATE:
+                    fragment = "confirmation.JAMAIS_CANDIDATE"
                 self.assertIn(fragment, source, f"{cle} : {fragment}")
 
     def test_lancer_canal_traduit_la_sortie_du_module(self):

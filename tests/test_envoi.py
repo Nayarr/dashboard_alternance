@@ -29,9 +29,16 @@ class TestAiguillage(unittest.TestCase):
         self._chemin_initial = db.DB_PATH
         db.DB_PATH = self.dossier / "test.db"
         db._schema_verifie = False
+        # Une pause reelle dans data/cadence.json faisait sauter WTTJ ici,
+        # et les tests echouaient selon l'etat du poste.
+        from alternance.candidature import cadence
+        self._cadence = cadence.FICHIER
+        cadence.FICHIER = self.dossier / "cadence.json"
         self.n = 0
 
     def tearDown(self):
+        from alternance.candidature import cadence
+        cadence.FICHIER = self._cadence
         db.DB_PATH = self._chemin_initial
         db._schema_verifie = False
         shutil.rmtree(self.dossier, ignore_errors=True)

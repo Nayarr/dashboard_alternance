@@ -43,10 +43,13 @@ ECHECS_AVANT_PAUSE = 2
 
 NOMS = {"wttj": "Welcome to the Jungle", "lba": "La Bonne Alternance"}
 
-# Ce qu'une page affiche quand le site limite les requetes.
+# Ce qu'une page affiche quand le site limite les requetes. Le blocage WTTJ
+# observe le 1er octobre est une page CloudFront en HTTP 403 : « 403 ERROR -
+# The request could not be satisfied. Request blocked. [...] Try again later ».
 SIGNES_DE_LIMITE = re.compile(
     r"too many requests|trop de (?:requ[eê]tes|tentatives)|rate.?limit|"
-    r"r[eé]essayez (?:plus tard|dans quelques minutes)|try again later",
+    r"r[eé]essayez (?:plus tard|dans quelques minutes)|try again later|"
+    r"request blocked|request could not be satisfied",
     re.I)
 
 
@@ -121,7 +124,11 @@ def poser_pause(site, motif):
 
 
 def page_limitee(page, statut=None):
-    """Vrai si la page ou sa reponse HTTP signale une limitation."""
+    """Vrai si la page ou sa reponse HTTP signale une limitation.
+
+    Un 403 seul ne suffit pas : une page privee en renvoie aussi. C'est le
+    texte qui tranche, et celui de CloudFront est sans ambiguite.
+    """
     if statut == 429:
         return True
     try:

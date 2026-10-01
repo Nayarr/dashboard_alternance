@@ -245,6 +245,24 @@ def upsert_offre(conn, offre):
     return cur.rowcount > 0
 
 
+def raviver_sans_canal(conn, offre):
+    """Une offre deja en base sans moyen de postuler en a maintenant un.
+
+    L'insertion est un INSERT OR IGNORE sur l'uid : une entreprise LBA
+    collectee sans formulaire, puis revenue avec un, restait classee « sans
+    moyen de postuler » pour toujours. On reporte le canal ; le statut, lui,
+    est recalcule par le rescore. Renvoie True si une ligne a ete reprise.
+    """
+    if not offre.get("recipient_id"):
+        return False
+    cur = conn.execute(
+        "UPDATE offres SET recipient_id = ?, url_candidature = ?, url_offre = ? "
+        "WHERE uid = ? AND statut = 'sans_canal' AND recipient_id IS NULL",
+        (offre["recipient_id"], offre.get("url_candidature"),
+         offre.get("url_offre"), offre["uid"]))
+    return cur.rowcount > 0
+
+
 def doublon_existant(conn, offre):
     """L'offre est-elle deja en base sous une autre source ?
 

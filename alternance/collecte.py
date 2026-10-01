@@ -132,8 +132,11 @@ def main():
 
     enrichir(offres)
 
-    nouvelles = ecoles = retenues = doublons = 0
+    nouvelles = ecoles = retenues = doublons = reprises = 0
     for o in offres:
+        if db.raviver_sans_canal(conn, o):
+            reprises += 1
+            continue
         # Une offre deja presente sous une autre source n'est pas rejetee en
         # silence : on la compte et on la signale, pour que le total colle.
         jumelle = db.doublon_existant(conn, o)
@@ -159,7 +162,15 @@ def main():
     )
     conn.commit()
 
+    # Une offre qui a gagne un formulaire doit quitter « Sans moyen de
+    # postuler » tout de suite, pas au prochain recalcul manuel.
+    if reprises:
+        rescore(conn)
+
     print(f"\n  nouvelles      : {nouvelles}")
+    if reprises:
+        print(f"  reprises       : {reprises} (sans formulaire auparavant, "
+              "en ont un maintenant)")
     print(f"  doublons       : {doublons} (deja presentes via une autre source)")
     print(f"  ecartees ecole : {ecoles}")
     print(f"  retenues       : {retenues}")

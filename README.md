@@ -449,10 +449,21 @@ Toute decision prise dans l'interface est journalisee et passe en statut fige :
 Le pipeline se pilote depuis le panneau de detail d'une offre :
 
     Lettre prete  --[Marquer envoyee]-->  Envoyee
+    Envoi a verifier --[Confirmer l'envoi]-> Envoyee
+                     --[Pas parti]-------->  Lettre prete
     Envoyee       --[Entretien obtenu]->  Entretien   --[Refus]--> Refus
     Entretien     --[Alternance signee]-> Signee
     Refus, Signee --[Rouvrir le suivi]->  etape precedente
     A relancer    --[Relance faite]---->  Envoyee, prochain rappel a J+7
+
+Un depot automatique ne passe en « Envoyee » que si le site affiche une
+confirmation **apres** le clic. Sans elle, l'offre va dans **Envoi a
+verifier** : le formulaire a ete valide, mais rien ne prouve que la
+candidature soit partie. Elle n'est plus jamais reprise par un envoi - avant,
+elle restait en « Lettre prete » et le clic suivant postulait une seconde fois.
+On verifie ses emails ou son espace sur le site, puis « Confirmer l'envoi » ou
+« Pas parti ». Une offre qui a deja une ligne de candidature n'est jamais
+renvoyee, meme designee a la main avec `--offre`.
 
 L'onglet **A relancer** liste les candidatures envoyees depuis sept jours sans
 reponse, la plus en retard d'abord. L'outil n'envoie aucune relance lui-meme :

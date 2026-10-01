@@ -27,6 +27,7 @@ import sys
 
 from alternance import db
 from alternance.candidature import cadence
+from alternance.candidature import confirmation
 
 # Ordre d'envoi, et module de chaque canal. Le module garde ses propres
 # options et son propre affichage : on l'appelle exactement comme la ligne
@@ -38,8 +39,9 @@ CANAUX = [
 # Memes criteres que les requetes de lba.py et wttj.py : un ecart ici
 # annoncerait une candidature que le canal ne trouverait pas.
 CONDITIONS = {
-    "lba": "source = 'lba' AND recipient_id IS NOT NULL",
-    "wttj": "source = 'wttj'",
+    "lba": "source = 'lba' AND recipient_id IS NOT NULL AND "
+           + confirmation.JAMAIS_CANDIDATE,
+    "wttj": "source = 'wttj' AND " + confirmation.JAMAIS_CANDIDATE,
 }
 LIBELLES_SOURCES = {
     "lba": "La Bonne Alternance (offre relayee, sans formulaire)",

@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS runs (
 # Statuts d'une offre, dans l'ordre du cycle de vie
 STATUTS = [
     "a_valider", "a_traiter", "ecarte", "ecole", "hors_cible", "sans_canal", "ats_externe", "lettre_prete",
-    "envoyee", "entretien", "refus", "signee",
+    "a_verifier", "envoyee", "entretien", "refus", "signee",
 ]
 
 # Statuts poses par une decision humaine : jamais ecrases par un --rescore
@@ -142,7 +142,7 @@ STATUTS = [
 # fait constate sur le formulaire, pas une deduction du score. Un rescore ne
 # doit pas la remettre en question, sinon l'offre revient dans le vivier a
 # chaque recalcul alors qu'elle n'est pas automatisable.
-STATUTS_FIGES = {"lettre_prete", "envoyee", "entretien", "refus", "ats_externe",
+STATUTS_FIGES = {"lettre_prete", "a_verifier", "envoyee", "entretien", "refus", "ats_externe",
                  "signee", "valide_manuel", "rejete_manuel"}
 
 

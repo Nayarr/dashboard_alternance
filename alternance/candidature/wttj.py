@@ -22,7 +22,6 @@ Sans --confirmer, le script remplit tout, capture l'ecran et n'envoie rien.
 import argparse
 import re
 import unicodedata
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -33,6 +32,7 @@ from alternance import chemins
 from alternance import config
 from alternance import db
 from alternance.candidature import cadence
+from alternance.candidature import confirmation
 
 BASE = config.RACINE
 LETTRES = BASE / "lettres"
@@ -201,16 +201,15 @@ def postuler(page, offre, lettre, confirmer):
     if envoi is None:
         return "erreur", "bouton d'envoi introuvable"
     envoi.scroll_into_view_if_needed()
+    avant = confirmation.compter(page)
     envoi.click()
 
-    try:
-        page.wait_for_selector(
-            "text=/candidature.*(envoy|transmis|recue)|application.*sent/i",
-            timeout=25000)
+    if confirmation.attendre(page, avant):
         return "envoyee", "envoyee"
-    except PWTimeout:
-        page.screenshot(path=str(capture).replace(".png", "_apres.png"))
-        return "incertain", "envoi clique, confirmation non detectee"
+    apres = Path(str(capture).replace(".png", "_apres.png"))
+    page.screenshot(path=str(apres))
+    return "incertain", "a verifier : envoi clique, confirmation non detectee (" \
+        + apres.name + ")"
 
 
 def main():
@@ -233,12 +232,18 @@ def main():
 
     conn = db.connect()
     if args.offre:
-        offres = conn.execute("SELECT * FROM offres WHERE id = ?",
-                              (args.offre,)).fetchall()
+        # Meme une offre designee a la main n'est pas renvoyee.
+        offres = conn.execute(
+            "SELECT * FROM offres WHERE id = ? AND " + confirmation.JAMAIS_CANDIDATE,
+            (args.offre,)).fetchall()
+        if not offres:
+            raise SystemExit("offre " + str(args.offre) + " introuvable, ou "
+                             "candidature deja deposee : rien n'est renvoye")
     else:
         offres = conn.execute(
             "SELECT * FROM offres WHERE source = 'wttj' AND statut = 'lettre_prete' "
-            "ORDER BY matching DESC, score DESC LIMIT ?", (args.limite,)).fetchall()
+            "AND " + confirmation.JAMAIS_CANDIDATE
+            + " ORDER BY matching DESC, score DESC LIMIT ?", (args.limite,)).fetchall()
 
     if not offres:
         raise SystemExit("aucune offre WTTJ avec lettre prete. "
@@ -301,22 +306,20 @@ def main():
                 conn.commit()
 
             if issue == "envoyee":
-                maintenant = datetime.now().isoformat(timespec="seconds")
-                conn.execute("UPDATE offres SET statut='envoyee' WHERE id=?", (o["id"],))
-                conn.execute(
-                    "INSERT INTO candidatures (offre_id, canal, lettre_path, cv_path,"
-                    " date_preparation, date_envoi, statut, date_relance_prevue)"
-                    " VALUES (?,'wttj_formulaire',?,?,?,?,'envoyee',date('now','+7 days'))",
-                    (o["id"], str(chemins.lettre_txt(o)),
-                     str(CV), maintenant, maintenant))
-                db.log(conn, o["id"], "envoi:wttj_formulaire", o["url_candidature"])
-                conn.commit()
+                confirmation.enregistrer_envoi(conn, o, "wttj_formulaire", CV)
+            elif issue == "incertain":
+                # Le formulaire est valide : l'offre ne doit plus jamais etre
+                # reprise par un envoi, meme sans confirmation lue.
+                confirmation.enregistrer_incertain(
+                    conn, o, "wttj_formulaire", CV, detail.rsplit("(", 1)[-1][:-1])
 
         navigateur.close()
 
     print("\n  envoyees         : " + str(compteurs["envoyee"]))
     print("  ATS externe      : " + str(compteurs["externe"]) + " (depot manuel)")
     print("  remplies a blanc : " + str(compteurs["blanc"]))
+    print("  a verifier       : " + str(compteurs["incertain"])
+          + " (formulaire valide, confirmation non lue)")
     print("  erreurs          : " + str(compteurs["erreur"]))
     print("  formulaire absent: " + str(compteurs["absent"]))
     conn.close()

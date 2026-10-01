@@ -33,6 +33,12 @@ const REBUTS = ["ecarte", "hors_cible", "sans_canal", "ecole", "ats_externe"];
    offres du portail de l'emploi public partent par courrier, et celles portees
    par l'ATS d'un employeur se deposent a la main. */
 const SUITES = {
+  // Formulaire valide sans confirmation lue : seule la personne peut savoir,
+  // par ses emails ou son espace sur le site, si la candidature est partie.
+  a_verifier: [
+    { statut: "envoyee", libelle: "Confirmer l'envoi", classe: "primaire" },
+    { statut: "lettre_prete", libelle: "Pas parti : remettre en Lettre prête" },
+  ],
   lettre_prete: [
     { statut: "envoyee", libelle: "Marquer envoyée", classe: "primaire" },
   ],
@@ -59,6 +65,7 @@ const SUITES = {
 
 const LIBELLES_SUITE = {
   envoyee: "Marquée envoyée",
+  lettre_prete: "Remise en Lettre prête",
   entretien: "Passée en entretien",
   refus: "Refus enregistré",
   signee: "Alternance signée",
@@ -329,6 +336,13 @@ function dateCourte(iso) {
    voyait pas puisqu'on ignorait qu'elle etait due. */
 function blocSuivi(s) {
   if (!s) return "";
+  if (s.statut === "incertain") {
+    return `<div class="section"><h4>Suivi</h4>
+      <p>Formulaire validé le ${dateCourte(s.date_envoi)}, mais le site n'a pas
+         affiché de confirmation. Vérifie tes emails ou ton espace sur le site,
+         puis confirme l'envoi ou remets l'offre en Lettre prête.</p>
+      ${s.notes ? `<p class="note">${s.notes}</p>` : ""}</div>`;
+  }
   const relances = s.nb_relances
     ? ` · ${s.nb_relances} relance${s.nb_relances > 1 ? "s" : ""} faite${s.nb_relances > 1 ? "s" : ""}`
     : "";

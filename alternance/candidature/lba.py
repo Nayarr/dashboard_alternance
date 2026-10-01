@@ -17,15 +17,14 @@ import argparse
 import re
 import time
 import unicodedata
-from datetime import datetime
 from pathlib import Path
 
-from playwright.sync_api import TimeoutError as PWTimeout
 from playwright.sync_api import sync_playwright
 
 from alternance import chemins
 from alternance import config
 from alternance import db
+from alternance.candidature import confirmation
 
 BASE = config.RACINE
 LETTRES = BASE / "lettres"
@@ -112,14 +111,13 @@ def postuler(page, offre, lettre, confirmer):
     if bouton is None:
         return "bouton d'envoi introuvable"
     bouton.scroll_into_view_if_needed()
+    avant = confirmation.compter(page)
     bouton.click()
-    try:
-        page.wait_for_selector(
-            "text=/candidature.*(envoy|transmis)/i", timeout=25000)
+    if confirmation.attendre(page, avant):
         return "envoyee"
-    except PWTimeout:
-        page.screenshot(path=str(capture).replace(".png", "_apres.png"))
-        return "envoi clique, confirmation non detectee (voir capture _apres)"
+    apres = Path(str(capture).replace(".png", "_apres.png"))
+    page.screenshot(path=str(apres))
+    return f"a verifier : envoi clique, confirmation non detectee ({apres.name})"
 
 
 def main():
@@ -135,12 +133,19 @@ def main():
 
     conn = db.connect()
     if args.offre:
-        offres = conn.execute("SELECT * FROM offres WHERE id = ?",
-                              (args.offre,)).fetchall()
+        # Meme une offre designee a la main n'est pas renvoyee : sans ce
+        # garde-fou, --offre --confirmer postulait une seconde fois.
+        offres = conn.execute(
+            "SELECT * FROM offres WHERE id = ? AND " + confirmation.JAMAIS_CANDIDATE,
+            (args.offre,)).fetchall()
+        if not offres:
+            raise SystemExit(f"offre {args.offre} introuvable, ou candidature "
+                             "deja deposee : rien n'est renvoye")
     else:
         offres = conn.execute(
             "SELECT * FROM offres WHERE source = 'lba' AND recipient_id IS NOT NULL "
-            "AND statut = 'lettre_prete' ORDER BY score DESC LIMIT ?",
+            "AND statut = 'lettre_prete' AND " + confirmation.JAMAIS_CANDIDATE
+            + " ORDER BY score DESC LIMIT ?",
             (args.limite,)).fetchall()
 
     if not offres:
@@ -149,7 +154,7 @@ def main():
     mode = "ENVOI REEL" if args.confirmer else "REPETITION A BLANC"
     print(f"{mode} — {len(offres)} candidature(s)\n")
 
-    envoyees = 0
+    envoyees = a_verifier = 0
     with sync_playwright() as pw:
         navigateur = pw.chromium.launch(headless=args.headless)
         contexte = navigateur.new_context(
@@ -176,17 +181,14 @@ def main():
             print(f"  #{o['id']:4} [{o['score']:3}] {nom:30} {resultat}")
 
             if resultat == "envoyee":
-                maintenant = datetime.now().isoformat(timespec="seconds")
-                conn.execute("UPDATE offres SET statut='envoyee' WHERE id=?", (o["id"],))
-                conn.execute(
-                    "INSERT INTO candidatures (offre_id, canal, lettre_path, cv_path,"
-                    " date_preparation, date_envoi, statut, date_relance_prevue)"
-                    " VALUES (?,'lba_formulaire',?,?,?,?, 'envoyee', date('now','+7 days'))",
-                    (o["id"], str(chemins.lettre_txt(o)),
-                     str(CV), maintenant, maintenant))
-                db.log(conn, o["id"], "envoi:lba_formulaire", o["url_candidature"])
-                conn.commit()
+                confirmation.enregistrer_envoi(conn, o, "lba_formulaire", CV)
                 envoyees += 1
+            elif resultat.startswith("a verifier"):
+                # Le formulaire est valide : l'offre ne doit plus jamais etre
+                # reprise par un envoi, meme sans confirmation lue.
+                confirmation.enregistrer_incertain(
+                    conn, o, "lba_formulaire", CV, resultat.rsplit("(", 1)[-1][:-1])
+                a_verifier += 1
 
             if i < len(offres) - 1:
                 time.sleep(PAUSE_ENTRE)
@@ -194,6 +196,9 @@ def main():
         navigateur.close()
 
     print(f"\n{envoyees} candidature(s) reellement envoyee(s)")
+    if a_verifier:
+        print(f"{a_verifier} envoi(s) a verifier : formulaire valide, mais le "
+              "site n'a pas affiche de confirmation. Onglet « Envoi a verifier ».")
     conn.close()
 
 

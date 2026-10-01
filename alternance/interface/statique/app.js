@@ -46,7 +46,7 @@ const SUITES = {
   ],
   // Une issue close se corrige : un refus mal saisi doit pouvoir revenir en
   // arriere, sinon la seule sortie serait de retirer l'offre.
-  refus: [{ statut: "envoyee", libelle: "Rouvrir le suivi" }],
+  refus: [{ statut: "envoyee", libelle: "Rouvrir le suivi", rouvrir: true }],
   signee: [{ statut: "entretien", libelle: "Rouvrir le suivi" }],
 };
 
@@ -280,27 +280,40 @@ async function ouvrirDetail(id) {
         : ""}
       ${(SUITES[etat.vue] || []).map((s) =>
         `<button class="bouton ${s.classe || ""}" data-action="${s.statut}"
-                 >${s.libelle}</button>`).join("")}
+                 ${s.rouvrir ? "data-rouvrir" : ""}>${s.libelle}</button>`).join("")}
       ${lien}
       <button class="bouton retrait" data-action="retirer">Retirer de la liste</button>
     </div>`;
 
   $("#detail").querySelectorAll("[data-action]").forEach((b) => {
-    b.onclick = () => changerStatut(id, b.dataset.action);
+    b.onclick = () => changerStatut(id, b.dataset.action,
+                                    b.hasAttribute("data-rouvrir"));
   });
   // Le panneau ne doit pas se refermer quand on clique a l'interieur
   $("#detail").onclick = (e) => e.stopPropagation();
 }
 
-async function changerStatut(id, action) {
+async function changerStatut(id, action, rouvrir = false) {
   const statut = action === "retirer" ? "rejete_manuel" : action;
+  // Rouvrir efface la reponse enregistree : c'etait possible d'un clic, sans
+  // avertissement, et le refus disparaissait sans retour possible.
+  if (rouvrir && !confirm("Rouvrir le suivi ?\n\nLa réponse enregistrée sera "
+      + "effacée, et la relance recalculée à partir de la date d'envoi.")) {
+    return;
+  }
   try {
-    await api(`/api/offre/${id}/statut`, {
+    const r = await api(`/api/offre/${id}/statut`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ statut }),
+      body: JSON.stringify({ statut, rouvrir }),
     });
-    toast(action === "retirer" ? "Offre retirée"
+    // Un clic qui ne change rien le dit, au lieu de faire comme s'il avait
+    // agi : l'offre a pu etre deposee automatiquement entre-temps.
+    if (r.inchange) {
+      toast(r.date_envoi
+        ? `Déjà envoyée le ${r.date_envoi.slice(0, 10)} : rien n'a changé`
+        : "Déjà dans cet état : rien n'a changé");
+    } else toast(action === "retirer" ? "Offre retirée"
         : action === "recuperer" ? "Offre récupérée dans le vivier"
         : LIBELLES_SUITE[action] || "Offre validée");
     etat.choisie = null;

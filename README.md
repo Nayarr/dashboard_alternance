@@ -463,6 +463,12 @@ Chaque passage est reporte sur la ligne de `candidatures` : un envoi arme une
 relance a J+7, une reponse la desarme. Sans ce report, on relancerait un
 recruteur qui a deja repondu.
 
+« Marquer envoyee » ne demande pas de lettre : une candidature par courrier,
+par email ou sur l'ATS d'un employeur n'en passe pas forcement par l'outil.
+Sur une offre deja envoyee, il ne change rien et le dit. Sur une offre qui a
+recu une reponse, il est refuse : seul « Rouvrir le suivi » revient en
+arriere, apres confirmation, et la relance repart de la date d'envoi reelle.
+
 ---
 
 ## Ce qui se regle sans toucher au code

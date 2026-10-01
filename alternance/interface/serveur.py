@@ -307,6 +307,27 @@ def api_statut(offre_id):
         conn.close()
         return jsonify({"erreur": "introuvable"}), 404
 
+    # Un clic qui ne change rien ne doit rien toucher. « Marquer envoyee » sur
+    # une offre deja envoyee - par exemple deposee automatiquement pendant que
+    # le panneau etait ouvert - recalculait la relance depuis le clic.
+    if avant["statut"] == effectif:
+        envoi = conn.execute(
+            "SELECT date_envoi FROM candidatures WHERE offre_id = ?",
+            (offre_id,)).fetchone()
+        conn.close()
+        return jsonify({"ok": True, "statut": effectif, "inchange": True,
+                        "date_envoi": envoi["date_envoi"] if envoi else None})
+
+    # Revenir a « envoyee » depuis une reponse efface cette reponse. C'etait
+    # possible d'un clic, sans avertissement : un refus enregistre disparaissait.
+    # Seul « Rouvrir le suivi », qui le demande explicitement et confirme
+    # avant, y est autorise.
+    if (effectif == "envoyee" and avant["statut"] in REPONSES
+            and not (request.json or {}).get("rouvrir")):
+        conn.close()
+        return jsonify({"erreur": "Cette offre a deja recu une reponse. "
+                        "« Rouvrir le suivi » pour l'annuler."}), 409
+
     # Le verrou survit au rescore : sans lui, le filtre qui avait ecarte
     # l'offre la reecarterait au calcul suivant, et la recuperation manuelle
     # n'aurait aucun effet durable.
@@ -339,15 +360,27 @@ def _suivre_reponse(conn, offre_id, statut):
     """
     if statut == "envoyee":
         existe = conn.execute(
-            "SELECT 1 FROM candidatures WHERE offre_id = ?", (offre_id,)).fetchone()
-        if existe:
+            "SELECT type_reponse FROM candidatures WHERE offre_id = ?",
+            (offre_id,)).fetchone()
+        if existe and existe["type_reponse"]:
             # Retour en arriere depuis un refus : "Rouvrir le suivi" remettait
             # l'offre en attente sans jamais rearmer la relance, qu'une reponse
             # precedente avait desarmee. L'offre restait donc en suspens sans
             # que rien ne la rappelle.
+            #
+            # La relance part de l'envoi reel, pas du clic : calculee depuis
+            # le clic, celle d'une offre partie cinq jours plus tot glissait
+            # au douzieme jour.
             conn.execute(
                 "UPDATE candidatures SET statut = 'envoyee', type_reponse = NULL, "
-                "date_reponse = NULL, date_relance_prevue = date('now', '+7 days') "
+                "date_reponse = NULL, "
+                "date_relance_prevue = date(date_envoi, '+7 days') "
+                "WHERE offre_id = ?", (offre_id,))
+        elif existe:
+            # Ligne deja en attente de reponse : rien a recalculer.
+            conn.execute(
+                "UPDATE candidatures SET statut = 'envoyee', date_relance_prevue "
+                "= COALESCE(date_relance_prevue, date(date_envoi, '+7 days')) "
                 "WHERE offre_id = ?", (offre_id,))
         else:
             # Depot fait a la main - email, formulaire d'un ATS, candidature en

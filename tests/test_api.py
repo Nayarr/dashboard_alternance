@@ -91,9 +91,11 @@ class TestAPI(unittest.TestCase):
     def test_cycle_de_vie_complet(self):
         """Le pipeline s'arretait a l'envoi : aucun bouton ne menait aux vues
         Entretien, Refus et Signee."""
-        for statut in ("lettre_prete", "envoyee", "entretien", "refus",
-                       "envoyee", "signee"):
-            r = self.client.post("/api/offre/1/statut", json={"statut": statut})
+        for statut, rouvrir in (("lettre_prete", False), ("envoyee", False),
+                                ("entretien", False), ("refus", False),
+                                ("envoyee", True), ("signee", False)):
+            r = self.client.post("/api/offre/1/statut",
+                                 json={"statut": statut, "rouvrir": rouvrir})
             self.assertEqual(r.status_code, 200, statut)
             self.assertEqual(r.get_json()["statut"], statut)
 
@@ -116,6 +118,62 @@ class TestAPI(unittest.TestCase):
         conn.close()
         self.assertIsNone(ligne["date_relance_prevue"])
         self.assertEqual(ligne["type_reponse"], "refus")
+
+    def candidature(self):
+        conn = db.connect()
+        ligne = conn.execute(
+            "SELECT * FROM candidatures WHERE offre_id = 1").fetchone()
+        conn.close()
+        return ligne
+
+    def envoyer_il_y_a(self, jours):
+        """Une candidature partie il y a `jours` jours, relance comprise."""
+        self.client.post("/api/offre/1/statut", json={"statut": "envoyee"})
+        conn = db.connect()
+        conn.execute(
+            "UPDATE candidatures SET date_envoi = datetime('now', ?), "
+            "date_relance_prevue = date('now', ?) WHERE offre_id = 1",
+            (f"-{jours} days", f"{7 - jours} days"))
+        conn.commit()
+        conn.close()
+
+    def test_marquer_envoyee_deux_fois_ne_change_rien(self):
+        """L'outil avait depose la candidature 26 secondes plus tot ; le clic
+        par-dessus recalculait la relance depuis le clic, sans rien dire."""
+        self.envoyer_il_y_a(5)
+        avant = dict(self.candidature())
+        r = self.client.post("/api/offre/1/statut", json={"statut": "envoyee"})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.get_json()["inchange"])
+        self.assertIsNotNone(r.get_json()["date_envoi"])
+        self.assertEqual(dict(self.candidature()), avant)
+
+    def test_une_reponse_ne_s_efface_pas_d_un_clic(self):
+        """Marquer envoyee une offre refusee remettait la reponse a vide,
+        sans avertissement ni retour possible."""
+        self.envoyer_il_y_a(2)
+        self.client.post("/api/offre/1/statut", json={"statut": "refus"})
+        r = self.client.post("/api/offre/1/statut", json={"statut": "envoyee"})
+        self.assertEqual(r.status_code, 409)
+        self.assertIn("Rouvrir", r.get_json()["erreur"])
+        ligne = self.candidature()
+        self.assertEqual(ligne["type_reponse"], "refus")
+        self.assertIsNotNone(ligne["date_reponse"])
+
+    def test_rouvrir_recalcule_la_relance_depuis_l_envoi(self):
+        """Elle partait du clic : une offre envoyee cinq jours plus tot etait
+        relancee au douzieme jour."""
+        self.envoyer_il_y_a(5)
+        self.client.post("/api/offre/1/statut", json={"statut": "refus"})
+        r = self.client.post("/api/offre/1/statut",
+                             json={"statut": "envoyee", "rouvrir": True})
+        self.assertEqual(r.status_code, 200)
+        conn = db.connect()
+        attendue = conn.execute("SELECT date('now', '+2 days')").fetchone()[0]
+        conn.close()
+        ligne = self.candidature()
+        self.assertEqual(ligne["date_relance_prevue"], attendue)
+        self.assertIsNone(ligne["type_reponse"])
 
     def test_statut_invalide_refuse(self):
         r = self.client.post("/api/offre/1/statut", json={"statut": "pirate"})

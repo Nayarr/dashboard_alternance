@@ -813,6 +813,14 @@ def api_envoi():
     finally:
         conn.close()
     etat["manuelles_texte"] = aiguillage.decrire_manuelles(etat["manuelles"])
+    # Un site en pause ne sera pas tente : la confirmation doit le dire, et
+    # ne pas compter ses candidatures dans celles qui vont partir.
+    from alternance.candidature import cadence
+    etat["pauses"] = {}
+    for cle in etat["canaux"]:
+        fin = cadence.reprise(cle)
+        if fin:
+            etat["pauses"][cle] = f"{fin:%H:%M}"
     return jsonify(etat)
 
 

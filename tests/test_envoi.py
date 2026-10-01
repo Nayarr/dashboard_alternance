@@ -113,6 +113,20 @@ class TestAiguillage(unittest.TestCase):
         self.assertIn("La Bonne Alternance", str(capture.exception.code))
         self.assertNotIn("Welcome", str(capture.exception.code))
 
+    def test_un_site_en_pause_n_est_pas_tente(self):
+        """WTTJ suspend le compte quand il est trop sollicite : pendant la
+        pause, ses candidatures attendent et LBA part quand meme."""
+        from datetime import datetime, timedelta
+        self.offre("lba", destinataire="r")
+        self.offre("wttj")
+        fin = datetime.now() + timedelta(minutes=20)
+        with mock.patch("alternance.candidature.cadence.reprise",
+                        side_effect=lambda site: fin if site == "wttj" else None):
+            appels, sortie = self.lancer("--confirmer")
+        self.assertEqual([a[0] for a in appels], ["lba"])
+        self.assertIn("reportee", sortie)
+        self.assertIn(f"{fin:%H:%M}", sortie)
+
     def test_les_conditions_sont_celles_des_canaux(self):
         """La repartition recopie les requetes de lba.py et wttj.py. Si l'une
         change seule, la confirmation annonce des candidatures que le canal

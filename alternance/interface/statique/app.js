@@ -1224,26 +1224,37 @@ async function demarrer() {
     } catch (e) {
       return toast(e.message, true);
     }
-    const total = (r.canaux.lba || 0) + (r.canaux.wttj || 0);
+    // Un site en pause - il a signale trop d'interactions - n'est pas tente :
+    // ses candidatures attendent la reprise et ne comptent pas ici.
+    const pauses = r.pauses || {};
+    const NOMS_CANAUX = { lba: "La Bonne Alternance", wttj: "Welcome to the Jungle" };
+    const actifs = Object.keys(NOMS_CANAUX).filter((c) => !pauses[c]);
+    const total = actifs.reduce((n, c) => n + (r.canaux[c] || 0), 0);
+    const enPause = Object.keys(pauses)
+      .filter((c) => r.canaux[c])
+      .map((c) => `${NOMS_CANAUX[c]} limite les interactions jusqu'à `
+        + `${pauses[c]} : ses ${r.canaux[c]} candidature(s) attendront.`)
+      .join("\n");
     const manuelles = r.manuelles_texte
       ? `Sans dépôt automatique : ${r.manuelles_texte}. Postuler depuis le `
         + "lien de l'offre, puis « Marquer envoyée »."
       : "";
     if (!total) {
-      toast(manuelles || "Aucune lettre prête. Générer les lettres d'abord.",
-            true);
+      toast(enPause || manuelles
+            || "Aucune lettre prête. Générer les lettres d'abord.", true);
       return;
     }
     const nombre = Math.min(limite, total);
-    const detail = [
-      r.canaux.lba ? `${r.canaux.lba} La Bonne Alternance` : "",
-      r.canaux.wttj ? `${r.canaux.wttj} Welcome to the Jungle` : "",
-    ].filter(Boolean).join(", ");
+    const detail = actifs
+      .filter((c) => r.canaux[c])
+      .map((c) => `${r.canaux[c]} ${NOMS_CANAUX[c]}`)
+      .join(", ");
     if (confirm(`Envoyer ${nombre} candidature${nombre > 1 ? "s" : ""} ?`
               + ` (prêtes : ${detail})\n\n`
               + "Les formulaires seront remplis ET VALIDÉS. Les candidatures "
               + "partiront réellement chez les employeurs.\n\n"
               + "C'est définitif : une candidature envoyée ne se rattrape pas."
+              + (enPause ? `\n\n${enPause}` : "")
               + (manuelles ? `\n\n${manuelles}` : ""))) {
       lancerTache("candidatures", { canal: "tout", limite, confirmer: true });
     }

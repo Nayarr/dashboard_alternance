@@ -27,17 +27,16 @@ Aucune candidature n'est envoyee, aucun champ n'est rempli.
 """
 
 import argparse
-import time
 
 from playwright.sync_api import sync_playwright
 
 from alternance import config
 from alternance import db
+from alternance.candidature import cadence
 from alternance.candidature import lba as postuler_lba
 from alternance.candidature import wttj as postuler_wttj
 
 SOURCES = ("lba", "wttj")
-PAUSE = 1.5
 
 NAVIGATEUR = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
@@ -71,8 +70,11 @@ def _releve(page):
 
 
 def _wttj(page, offre):
-    page.goto(offre["url_candidature"], wait_until="domcontentloaded", timeout=45000)
+    reponse = page.goto(offre["url_candidature"], wait_until="domcontentloaded",
+                        timeout=45000)
     page.wait_for_timeout(2500)
+    if cadence.page_limitee(page, reponse.status if reponse else None):
+        return None, "limite"
 
     postuler_wttj.refuser_cookies(page)
 
@@ -98,6 +100,8 @@ def _wttj(page, offre):
     try:
         page.wait_for_selector("input[name='firstname']", timeout=20000)
     except Exception:
+        if cadence.page_limitee(page):
+            return None, "limite"
         return None, "formulaire non affiche"
 
     return _releve(page), None
@@ -139,8 +143,18 @@ def inspecter(conn, source, limite):
     session = config.BASE_DIR / "data" / "sessions" / f"{source}.json"
     traitees = 0
 
+    try:
+        cadence.verifier(source)
+    except cadence.SiteEnPause as e:
+        print(f"  {e}")
+        return 0
+    surveillance = cadence.Surveillance(source)
+
     with sync_playwright() as pw:
-        navigateur = pw.chromium.launch(headless=True)
+        # Meme lenteur que le depot : la reconnaissance ouvre les memes
+        # formulaires, avec le meme compte.
+        navigateur = pw.chromium.launch(
+            headless=True, slow_mo=postuler_wttj.LENTEUR_MS if source == "wttj" else 0)
         contexte = navigateur.new_context(
             storage_state=str(session) if session.exists() else None,
             viewport={"width": 1440, "height": 950}, locale="fr-FR",
@@ -148,10 +162,27 @@ def inspecter(conn, source, limite):
         page = contexte.new_page()
 
         for offre in offres:
+            # Ouvrir quarante formulaires a huit secondes d'intervalle, avec
+            # le compte connecte, suffisait a faire suspendre le compte WTTJ
+            # pendant une demi-heure.
             try:
-                releve, souci = INSPECTEURS[source](page, offre)
-            except Exception as e:
-                releve, souci = None, f"{type(e).__name__}"
+                cadence.attendre(source)
+                try:
+                    releve, souci = INSPECTEURS[source](page, offre)
+                except Exception as e:
+                    releve, souci = None, f"{type(e).__name__}"
+                if souci == "limite":
+                    surveillance.limite("le site signale trop de requetes")
+                elif source == "wttj" and souci in ("formulaire non affiche",
+                                                     "TimeoutError"):
+                    # Seul WTTJ limite sans le dire : sur LBA, un delai
+                    # depasse vient d'une offre, pas d'une sanction.
+                    surveillance.echec(souci)
+                elif releve is not None:
+                    surveillance.succes()
+            except cadence.SiteEnPause as e:
+                print(f"  ARRET  {e}")
+                break
 
             if releve is None:
                 # Une redirection hors domaine est un fait etabli : l'offre
@@ -169,7 +200,6 @@ def inspecter(conn, source, limite):
                 # bandeau de consentement, bouton renomme... rien ne prouve
                 # qu'il soit externe, on reessaiera.
                 print(f"  #{offre['id']:5} {offre['entreprise'][:24]:26} {souci}")
-                time.sleep(PAUSE)
                 continue
 
             texte = 1 if releve["lettre_texte"] else 0
@@ -190,7 +220,6 @@ def inspecter(conn, source, limite):
                       (" + piece jointe" if fichier else "")
             print(f"  #{offre['id']:5} {offre['entreprise'][:24]:26} "
                   f"{verdict or 'AUCUNE lettre possible'}")
-            time.sleep(PAUSE)
 
         navigateur.close()
 

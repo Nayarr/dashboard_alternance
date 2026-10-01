@@ -26,6 +26,7 @@ import argparse
 import sys
 
 from alternance import db
+from alternance.candidature import cadence
 
 # Ordre d'envoi, et module de chaque canal. Le module garde ses propres
 # options et son propre affichage : on l'appelle exactement comme la ligne
@@ -131,6 +132,13 @@ def main():
     for cle, nom, module in CANAUX:
         n = min(etat["canaux"][cle], reste)
         if not n:
+            continue
+        # En pause, le canal n'est pas tente : ses candidatures attendent la
+        # reprise, et les autres canaux partent quand meme.
+        fin = cadence.reprise(cle)
+        if fin:
+            print(f"--- {nom} : {n} candidature(s) reportee(s). "
+                  + cadence.message_pause(cle, fin) + "\n")
             continue
         print(f"--- {nom} : {n} candidature(s)")
         arguments = ["--limite", str(n)]

@@ -21,7 +21,6 @@ Sans --confirmer, le script remplit tout, capture l'ecran et n'envoie rien.
 
 import argparse
 import re
-import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +32,7 @@ from playwright.sync_api import sync_playwright
 from alternance import chemins
 from alternance import config
 from alternance import db
+from alternance.candidature import cadence
 
 BASE = config.RACINE
 LETTRES = BASE / "lettres"
@@ -40,8 +40,11 @@ CV = chemins.CV
 SESSION = BASE / "data" / "sessions" / "wttj.json"
 CAPTURES = BASE / "data" / "captures"
 
-PAUSE_ENTRE = 10          # secondes entre deux candidatures
 HOTE_WTTJ = "welcometothejungle.com"
+# Delai entre deux actions du navigateur, en millisecondes. Sans lui, six
+# champs, le CV et le clic d'envoi partaient en moins de deux secondes. Le
+# rythme entre deux candidatures, lui, est tenu par le module cadence.
+LENTEUR_MS = 250
 
 
 def slug(texte):
@@ -103,8 +106,11 @@ def refuser_cookies(page):
 
 def postuler(page, offre, lettre, confirmer):
     """Retourne (issue, detail). N'envoie que si confirmer est vrai."""
-    page.goto(offre["url_candidature"], wait_until="domcontentloaded", timeout=60000)
+    reponse = page.goto(offre["url_candidature"], wait_until="domcontentloaded",
+                        timeout=60000)
     page.wait_for_timeout(2200)
+    if cadence.page_limitee(page, reponse.status if reponse else None):
+        return "limite", "le site signale trop de requetes"
     refuser_cookies(page)
 
     bouton = premier_visible(page.locator(
@@ -130,10 +136,13 @@ def postuler(page, offre, lettre, confirmer):
         # On a quitte le domaine : la redirection est averee.
         if HOTE_WTTJ not in urlparse(page.url).netloc:
             return "externe", "redirige vers " + urlparse(page.url).netloc
+        if cadence.page_limitee(page):
+            return "limite", "le site signale trop de requetes"
         # Sinon on est reste sur WTTJ sans voir le formulaire : lenteur,
-        # bandeau de consentement, modale non ouverte... Rien ne prouve que
-        # l'offre soit portee par un ATS tiers, donc on ne la reclasse pas.
-        return "erreur", "formulaire non apparu sur WTTJ (reessayer)"
+        # bandeau de consentement, modale non ouverte, ou limitation muette.
+        # Rien ne prouve que l'offre soit portee par un ATS tiers, donc on ne
+        # la reclasse pas ; deux de suite font conclure a une limitation.
+        return "absent", "formulaire non apparu sur WTTJ (reessayer)"
 
     nom = config.PROFIL["nom"].split()
     remplir_si_vide(page, "input[name='firstname']", nom[0])
@@ -217,6 +226,10 @@ def main():
                          + "\nLancer : python cli.py connecter wttj")
     if not CV.exists():
         raise SystemExit("CV introuvable : " + str(CV))
+    try:
+        cadence.verifier("wttj")
+    except cadence.SiteEnPause as e:
+        raise SystemExit(str(e))
 
     conn = db.connect()
     if args.offre:
@@ -234,10 +247,14 @@ def main():
     mode = "ENVOI REEL" if args.confirmer else "REPETITION A BLANC"
     print(mode + " - " + str(len(offres)) + " candidature(s)\n")
 
-    compteurs = {"envoyee": 0, "externe": 0, "erreur": 0, "blanc": 0, "incertain": 0}
+    compteurs = {"envoyee": 0, "externe": 0, "erreur": 0, "blanc": 0,
+                 "incertain": 0, "absent": 0}
+    surveillance = cadence.Surveillance("wttj")
+    arret = None
 
     with sync_playwright() as pw:
-        navigateur = pw.chromium.launch(headless=args.headless)
+        navigateur = pw.chromium.launch(headless=args.headless,
+                                        slow_mo=LENTEUR_MS)
         contexte = navigateur.new_context(
             storage_state=str(SESSION), locale="fr-FR",
             viewport={"width": 1400, "height": 1000},
@@ -255,7 +272,21 @@ def main():
                       + " : le texte enregistre n'est pas une lettre, a rediger")
                 continue
             try:
+                cadence.attendre("wttj")
                 issue, detail = postuler(page, o, lettre, args.confirmer)
+                # Le site limite : on s'arrete. Continuer prolonge la
+                # suspension, et chaque offre suivante echouerait de toute
+                # facon.
+                if issue == "limite":
+                    surveillance.limite(detail)
+                elif issue == "absent":
+                    surveillance.echec(detail)
+                elif issue != "erreur":
+                    surveillance.succes()
+            except cadence.SiteEnPause as e:
+                arret = str(e)
+                print("  ARRET  " + arret)
+                break
             except Exception as e:
                 issue, detail = "erreur", type(e).__name__ + ": " + str(e)[:70]
 
@@ -281,16 +312,17 @@ def main():
                 db.log(conn, o["id"], "envoi:wttj_formulaire", o["url_candidature"])
                 conn.commit()
 
-            if i < len(offres) - 1:
-                time.sleep(PAUSE_ENTRE)
-
         navigateur.close()
 
     print("\n  envoyees         : " + str(compteurs["envoyee"]))
     print("  ATS externe      : " + str(compteurs["externe"]) + " (depot manuel)")
     print("  remplies a blanc : " + str(compteurs["blanc"]))
     print("  erreurs          : " + str(compteurs["erreur"]))
+    print("  formulaire absent: " + str(compteurs["absent"]))
     conn.close()
+
+    if arret:
+        raise SystemExit(arret)
 
 
 if __name__ == "__main__":

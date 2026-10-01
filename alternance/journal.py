@@ -33,6 +33,9 @@ TAILLE_MAX = 2_000_000
 DIAGNOSTICS = [
     # Le message de la redaction dit deja quoi faire : on le rend tel quel.
     (r"(?m)^Lettres impossibles : (.*)$", "{1}"),
+    # Un site qui limite : l'heure de reprise est dans le message.
+    (r"(?m)^\s*(?:ARRET\s+)?(.*(?:limite les interactions|ne repond plus "
+     r"normalement).*)$", "{1}"),
     (r"CLAUDE_CODE_OAUTH_TOKEN absent",
      "Jeton Claude absent. Page Parametres, bloc « Jeton Claude » : le produire "
      "avec `claude setup-token` dans un terminal."),

@@ -122,7 +122,10 @@ class TestDetection(unittest.TestCase):
 
     def test_le_texte_de_la_page_signale_une_limite(self):
         for texte in ("Too Many Requests", "Trop de requêtes, réessayez plus tard",
-                      "Please try again later"):
+                      "Please try again later",
+                      # La page reelle du blocage WTTJ, releve le 1er octobre.
+                      "403 ERROR\nThe request could not be satisfied.\n"
+                      "Request blocked. We can't connect to the server"):
             self.assertTrue(cadence.page_limitee(self.page(texte)), texte)
 
     def test_une_page_normale_n_est_pas_une_limite(self):
